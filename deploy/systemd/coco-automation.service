@@ -1,0 +1,24 @@
+# Installed by scripts/install.sh --systemd (placeholders replaced automatically)
+[Unit]
+Description=Coco Automation - multi-channel YouTube platform
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_DIR__/backend
+ExecStart=__APP_DIR__/scripts/run.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+KillSignal=SIGTERM
+# Resource guard for an 8 GB machine (renderer limits itself further in Phase 2)
+MemoryMax=6G
+Nice=5
+StandardOutput=append:__APP_DIR__/logs/server.out
+StandardError=append:__APP_DIR__/logs/server.out
+
+[Install]
+WantedBy=multi-user.target
