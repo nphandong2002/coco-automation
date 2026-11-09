@@ -10,26 +10,31 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, str_enum
 from app.models.enums import (
     AssetKind,
+    AssetSource,
     ContentType,
     IdeaStatus,
     JobStatus,
     LicenseType,
     PrivacyStatus,
     ProductionStatus,
+    VideoJobType,
 )
 
 
@@ -72,7 +77,12 @@ class Asset(TimestampMixin, Base):
     """Image/audio/video file with mandatory licence information."""
 
     __tablename__ = "assets"
-    __table_args__ = (UniqueConstraint("channel_id", "sha256"),)
+    __table_args__ = (
+        UniqueConstraint("channel_id", "sha256"),
+        # shared library (channel_id IS NULL): one row per file content
+        Index("uq_assets_shared_sha256", "sha256", unique=True,
+              postgresql_where=text("channel_id IS NULL"), sqlite_where=text("channel_id IS NULL")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # NULL = shared asset library
@@ -92,12 +102,20 @@ class Asset(TimestampMixin, Base):
     license_source: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     attribution: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     tags: Mapped[list] = mapped_column(default=list, nullable=False)
+    source: Mapped[AssetSource] = mapped_column(
+        str_enum(AssetSource, "asset_source"), default=AssetSource.UPLOAD, nullable=False
+    )
+    # probe info (codecs...), generator parameters, etc.
+    meta: Mapped[dict] = mapped_column(default=dict, nullable=False)
 
 
 class ContentProject(TimestampMixin, Base):
     __tablename__ = "content_projects"
     __table_args__ = (
         UniqueConstraint("channel_id", "id", name="uq_content_projects_channel_id_id"),
+        # fingerprint = hash of everything that changes the RENDERED output (not title/description).
+        # Blocks mass-duplicating a video by only changing its title.
+        UniqueConstraint("channel_id", "fingerprint", name="uq_content_projects_channel_id_fingerprint"),
         # character must be OWNED by or GRANTED to this channel
         ForeignKeyConstraint(
             ["channel_id", "character_id"],
@@ -136,6 +154,10 @@ class ContentProject(TimestampMixin, Base):
     youtube_description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     youtube_tags: Mapped[list] = mapped_column(default=list, nullable=False)
     thumbnail_path: Mapped[str | None] = mapped_column(String(512))
+    # {"overlay": {...timer...}, "fps": 30, "crf": 22, "preset": "veryfast", "chime": true}
+    render_settings: Mapped[dict] = mapped_column(default=dict, nullable=False)
+    fingerprint: Mapped[str | None] = mapped_column(String(64))
+    last_error: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ProductionStatus] = mapped_column(
         str_enum(ProductionStatus, "production_status"), default=ProductionStatus.DRAFT, nullable=False
     )
@@ -152,6 +174,10 @@ class VideoJob(TimestampMixin, Base):
             name="fk_video_jobs_project",
             ondelete="CASCADE",
         ),
+        # never two queued/running jobs for the same project (no duplicate work)
+        Index("uq_video_jobs_one_active_per_project", "content_project_id", unique=True,
+              postgresql_where=text("status IN ('queued', 'running')"),
+              sqlite_where=text("status IN ('queued', 'running')")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -159,9 +185,16 @@ class VideoJob(TimestampMixin, Base):
         ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True
     )
     content_project_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    job_type: Mapped[VideoJobType] = mapped_column(
+        str_enum(VideoJobType, "video_job_type"), default=VideoJobType.FULL, nullable=False
+    )
     status: Mapped[JobStatus] = mapped_column(
         str_enum(JobStatus, "job_status"), default=JobStatus.QUEUED, nullable=False, index=True
     )
+    step: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    duration_sec: Mapped[float | None] = mapped_column(Float)
+    timeout_sec: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     progress: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -184,7 +217,6 @@ class Video(TimestampMixin, Base):
             ["channel_id", "content_project_id"],
             ["content_projects.channel_id", "content_projects.id"],
             name="fk_videos_project",
-            ondelete="SET NULL",
         ),
     )
 

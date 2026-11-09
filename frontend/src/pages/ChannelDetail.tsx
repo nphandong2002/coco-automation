@@ -6,8 +6,10 @@ import ChannelForm, { channelToInput, WEEKDAYS } from "../components/ChannelForm
 import { CharacterCard, CreateCharacterForm } from "../components/CharacterForms";
 import { ColorChips, Empty, ErrorBox, Field, ImageUpload, Loading, Modal, Stat, StatusBadge, Tabs } from "../components/ui";
 import { fmtDate, useAction, useApi } from "../lib/hooks";
+import { ProjectTable, VideoList } from "../components/production";
+import { NewProjectModal } from "./ContentLibrary";
 
-type Tab = "overview" | "brand" | "characters" | "youtube" | "activity";
+type Tab = "overview" | "brand" | "characters" | "content" | "videos" | "youtube" | "activity";
 
 export default function ChannelDetail() {
   const id = Number(useParams().channelId);
@@ -57,7 +59,8 @@ export default function ChannelDetail() {
 
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { key: "overview", label: "Tổng quan" }, { key: "brand", label: "Thương hiệu & lịch đăng" },
-        { key: "characters", label: "Nhân vật" }, { key: "youtube", label: "YouTube" }, { key: "activity", label: "Hoạt động" },
+        { key: "characters", label: "Nhân vật" }, { key: "content", label: "Nội dung" }, { key: "videos", label: "Video" },
+        { key: "youtube", label: "YouTube" }, { key: "activity", label: "Hoạt động" },
       ]} />
 
       {tab === "overview" && <OverviewTab ch={ch} summary={summary.data} />}
@@ -78,6 +81,8 @@ export default function ChannelDetail() {
         </div>
       )}
       {tab === "characters" && <CharactersTab channelId={id} />}
+      {tab === "content" && <ContentTab channelId={id} />}
+      {tab === "videos" && <VideosTab channelId={id} />}
       {tab === "youtube" && (
         <div className="card space-y-3 p-5">
           <div className="flex items-center gap-2"><span className="font-semibold">Trạng thái kết nối:</span>
@@ -102,7 +107,7 @@ function OverviewTab({ ch, summary }: { ch: Channel; summary: ChannelSummary | n
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Nhân vật" value={summary ? summary.characters_owned + summary.characters_granted : "…"}
           sub={summary ? `${summary.characters_owned} sở hữu · ${summary.characters_granted} được cấp quyền` : undefined} />
-        <Stat label="Nội dung" value={summary?.content_projects ?? "…"} sub="Content Manager — Phase 2" />
+        <Stat label="Nội dung" value={summary?.content_projects ?? "…"} sub="Dự án nội dung của kênh" />
         <Stat label="Video" value={summary?.videos ?? "…"} sub={summary ? `${summary.render_jobs_active} đang render/chờ` : undefined} />
         <Stat label="Analytics" value={summary ? (summary.analytics_days_synced ? `${summary.analytics_days_synced} ngày` : "Chưa đồng bộ") : "…"} sub="YouTube Analytics — Phase 4" />
       </div>
@@ -213,3 +218,23 @@ function DeleteModal({ ch, onClose, onDone }: { ch: Channel; onClose: () => void
   );
 }
 
+
+function ContentTab({ channelId }: { channelId: number }) {
+  const { data, error, loading, reload } = useApi(() => api.channelContent(channelId), [channelId]);
+  const ch = useApi(() => api.channel(channelId), [channelId]);
+  const [creating, setCreating] = useState(false);
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end"><button className="btn-primary" onClick={() => setCreating(true)}>+ Dự án nội dung</button></div>
+      {loading && !data ? <Loading /> : error ? <ErrorBox error={error} onRetry={reload} /> : <ProjectTable items={data ?? []} showChannel={false} />}
+      {creating && ch.data && <NewProjectModal channels={[ch.data]} initialChannel={channelId} onClose={() => setCreating(false)} />}
+    </div>
+  );
+}
+
+function VideosTab({ channelId }: { channelId: number }) {
+  const { data, error, loading, reload } = useApi(() => api.videos({ channel_id: channelId }), [channelId]);
+  if (loading && !data) return <Loading />;
+  if (error) return <ErrorBox error={error} onRetry={reload} />;
+  return <VideoList items={data ?? []} onChanged={() => void reload()} />;
+}

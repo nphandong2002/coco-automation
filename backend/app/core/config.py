@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Coco Automation"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     environment: str = "production"
 
     host: str = "0.0.0.0"
@@ -39,6 +39,29 @@ class Settings(BaseSettings):
     max_upload_mb: int = 25
     log_level: str = "INFO"
     log_dir: Path = PROJECT_ROOT / "logs"
+
+    # ---------------------------------------------------------------- Phase 2: assets
+    # Audio/video assets can be large: they are streamed to disk, never held in RAM.
+    max_asset_upload_mb: int = 2048
+
+    # ---------------------------------------------------------------- Phase 2: rendering
+    ffmpeg_path: str = ""          # empty = find "ffmpeg" on PATH
+    ffprobe_path: str = ""         # empty = find "ffprobe" on PATH (optional, ffmpeg fallback)
+    font_path: str = ""            # TTF/OTF for timer + thumbnail text; empty = auto-detect
+    render_threads: int = 0        # 0 = CPU cores - 1 (min 1)
+    render_preset: str = "veryfast"
+    render_crf: int = 22
+    render_max_bitrate_kbps: int = 4500
+    render_audio_bitrate_kbps: int = 192
+    render_nice: int = 10          # lower CPU priority so the dashboard stays responsive
+    render_loop_seconds: int = 60  # length of the seamless visual loop
+    render_timeout_factor: float = 3.0   # job timeout = max(1h, duration * factor)
+    min_free_disk_gb: float = 5.0
+
+    # ---------------------------------------------------------------- Phase 2: worker
+    worker_poll_seconds: float = 3.0
+    worker_heartbeat_seconds: float = 10.0
+    worker_stale_seconds: int = 180
 
 
 @lru_cache

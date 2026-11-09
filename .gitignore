@@ -9,3 +9,4 @@ storage/
 logs/
 backups/
 run/
+*.tsbuildinfo

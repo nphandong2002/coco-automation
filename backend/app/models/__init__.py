@@ -2,7 +2,7 @@
 from app.models.base import Base
 from app.models.channel import Channel, YoutubeCredential
 from app.models.character import ChannelCharacter, Character, CharacterVersion
-from app.models.ops import AnalyticsDaily, AnalyticsVideo, SchedulerJob, SystemLog
+from app.models.ops import AnalyticsDaily, AnalyticsVideo, SchedulerJob, SystemLog, WorkerStatus
 from app.models.production import (
     Asset,
     ContentIdea,
@@ -31,4 +31,5 @@ __all__ = [
     "AnalyticsVideo",
     "SchedulerJob",
     "SystemLog",
+    "WorkerStatus",
 ]

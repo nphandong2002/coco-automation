@@ -6,9 +6,9 @@ const NAV: { to: string; label: string; icon: string; phase?: number }[] = [
   { to: "/", label: "Overview", icon: "◎" },
   { to: "/channels", label: "Channels", icon: "▶" },
   { to: "/characters", label: "Characters", icon: "☺" },
-  { to: "/content", label: "Content Library", icon: "▤", phase: 2 },
-  { to: "/production", label: "Video Production", icon: "◧", phase: 2 },
-  { to: "/assets", label: "Assets", icon: "▣", phase: 2 },
+  { to: "/content", label: "Content Library", icon: "▤" },
+  { to: "/production", label: "Video Production", icon: "◧" },
+  { to: "/assets", label: "Assets", icon: "▣" },
   { to: "/publishing", label: "Publishing", icon: "↑", phase: 3 },
   { to: "/scheduler", label: "Scheduler", icon: "◷", phase: 3 },
   { to: "/analytics", label: "Analytics", icon: "▲", phase: 4 },
@@ -39,7 +39,7 @@ export default function Layout() {
             ),
           )}
         </nav>
-        <div className="px-5 py-4 text-xs text-ink-500">Phase 1 · v0.1.0</div>
+        <div className="px-5 py-4 text-xs text-ink-500">Phase 2 · v0.2.0</div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 overflow-x-auto border-b border-brand-100 bg-white px-4 py-2 md:hidden">

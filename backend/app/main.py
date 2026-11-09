@@ -14,11 +14,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import channels, characters, system
+from app.api.routes import assets, channels, characters, content, production, system
 from app.core.config import get_settings
 from app.core.logging_setup import setup_logging
 from app.core.security import SecretKeyMissing
 from app.core.storage import StorageError, storage_root
+from app.render.ffmpeg import FFmpegNotFound
 from app.services.errors import AppError
 
 setup_logging()
@@ -59,6 +60,11 @@ async def storage_error_handler(_: Request, exc: StorageError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+@app.exception_handler(FFmpegNotFound)
+async def ffmpeg_missing_handler(_: Request, exc: FFmpegNotFound):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 @app.exception_handler(SecretKeyMissing)
 async def secret_missing_handler(_: Request, exc: SecretKeyMissing):
     return JSONResponse(status_code=500, content={"detail": str(exc)})
@@ -81,7 +87,8 @@ async def unhandled(_: Request, exc: Exception):
 
 
 # ------------------------------------------------------------------ routes
-for r in (system.router, channels.router, characters.router):
+for r in (system.router, channels.router, characters.router, assets.router, content.router,
+          production.router):
     app.include_router(r, prefix="/api")
 
 app.mount("/media", StaticFiles(directory=str(storage_root())), name="media")

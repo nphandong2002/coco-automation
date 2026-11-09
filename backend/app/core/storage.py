@@ -102,3 +102,76 @@ def remove_channel_files(channel_id: int) -> None:
 
 def media_url(rel_path: str | None) -> str | None:
     return f"/media/{rel_path}" if rel_path else None
+
+
+# ---------------------------------------------------------------- Phase 2: large files
+CHUNK = 1024 * 1024
+
+
+def tmp_dir() -> Path:
+    d = storage_root() / "tmp"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def save_stream(fileobj, rel_dir: Path, ext: str, max_bytes: int) -> dict:  # noqa: ANN001
+    """Stream an upload to disk (constant memory), hashing on the fly.
+
+    Returns {path, sha256, size, abs_path}. The final name is <sha256>.<ext> (content-addressed).
+    """
+    import tempfile
+
+    h = hashlib.sha256()
+    size = 0
+    fd, tmp_name = tempfile.mkstemp(dir=tmp_dir(), suffix=".upload")
+    tmp = Path(tmp_name)
+    try:
+        with open(fd, "wb") as out:
+            while block := fileobj.read(CHUNK):
+                size += len(block)
+                if size > max_bytes:
+                    raise StorageError(f"File quá lớn (tối đa {max_bytes // (1024 * 1024)} MB)")
+                h.update(block)
+                out.write(block)
+        if size == 0:
+            raise StorageError("File rỗng")
+        digest = h.hexdigest()
+        rel_path = rel_dir / f"{digest}.{ext}"
+        abs_path = storage_root() / rel_path
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        if abs_path.exists():
+            tmp.unlink(missing_ok=True)
+        else:
+            tmp.replace(abs_path)
+        return {"path": rel_path.as_posix(), "sha256": digest, "size": size, "abs_path": abs_path}
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def save_file(src: Path, rel_dir: Path, ext: str) -> dict:
+    """Move a generated local file into content-addressed storage."""
+    with src.open("rb") as fh:
+        info = save_stream(fh, rel_dir, ext, max_bytes=1 << 40)
+    src.unlink(missing_ok=True)
+    return info
+
+
+def delete_file(rel_path: str | None) -> None:
+    if not rel_path:
+        return
+    try:
+        p = resolve(rel_path)
+    except StorageError:
+        return
+    p.unlink(missing_ok=True)
+
+
+def file_size(rel_path: str | None) -> int:
+    if not rel_path:
+        return 0
+    try:
+        p = resolve(rel_path)
+        return p.stat().st_size if p.exists() else 0
+    except (StorageError, OSError):
+        return 0

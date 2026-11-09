@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, str_enum, utcnow
-from app.models.enums import DataSource, JobStatus, LogLevel
+from app.models.enums import DataSource, JobStatus, LogLevel, WorkerState
 
 
 class AnalyticsDaily(Base):
@@ -118,3 +118,21 @@ class SystemLog(Base):
     )
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     details: Mapped[dict] = mapped_column(default=dict, nullable=False)
+
+
+class WorkerStatus(Base):
+    """Heartbeat of background worker processes (render worker; Phase 3+: upload/scheduler)."""
+
+    __tablename__ = "worker_status"
+
+    worker_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), default="render", nullable=False)
+    hostname: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    pid: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[WorkerState] = mapped_column(
+        str_enum(WorkerState, "worker_state"), default=WorkerState.IDLE, nullable=False
+    )
+    current_job_id: Mapped[int | None] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    info: Mapped[dict] = mapped_column(default=dict, nullable=False)

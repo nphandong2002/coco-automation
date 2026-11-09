@@ -8,6 +8,10 @@ import ChannelDetail from "./pages/ChannelDetail";
 import Characters from "./pages/Characters";
 import CharacterDetail from "./pages/CharacterDetail";
 import Settings from "./pages/Settings";
+import Assets from "./pages/Assets";
+import ContentLibrary from "./pages/ContentLibrary";
+import ContentDetail from "./pages/ContentDetail";
+import Production from "./pages/Production";
 import "./index.css";
 
 function NotFound() {
@@ -24,6 +28,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="channels/:channelId" element={<ChannelDetail />} />
           <Route path="channels/:channelId/characters/:characterId" element={<CharacterDetail />} />
           <Route path="characters" element={<Characters />} />
+          <Route path="content" element={<ContentLibrary />} />
+          <Route path="channels/:channelId/content/:projectId" element={<ContentDetail />} />
+          <Route path="production" element={<Production />} />
+          <Route path="assets" element={<Assets />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>
