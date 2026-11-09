@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     port: int = 8080
 
     database_url: str = "postgresql+psycopg://coco:coco@localhost:5432/coco"
+    # Windows/portable mode: Coco runs its own private PostgreSQL (bundled by the `pgserver` package)
+    # on 127.0.0.1 using the port/user/password from DATABASE_URL. See docs/WINDOWS.md.
+    embedded_pg: bool = False
+    pg_data_dir: Path = PROJECT_ROOT / "data" / "pgdata"
 
     # Root folder for all generated/uploaded files (videos, images, audio ...)
     storage_dir: Path = PROJECT_ROOT / "storage"

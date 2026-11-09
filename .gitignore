@@ -10,3 +10,6 @@ logs/
 backups/
 run/
 *.tsbuildinfo
+data/
+.env.before-restore
+dist/

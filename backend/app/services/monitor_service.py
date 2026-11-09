@@ -243,6 +243,11 @@ def build_alerts(snap: dict) -> list[dict]:
     return a
 
 
+def _ffmpeg_path() -> str | None:
+    from app.services.overview_service import _ffmpeg_path as resolve
+    return resolve()
+
+
 # ---------------------------------------------------------------- public API
 def snapshot(db: Session) -> dict:
     s = get_settings()
@@ -252,7 +257,7 @@ def snapshot(db: Session) -> dict:
         "workers": _workers(db), "queues": _queues(db),
         "youtube": _youtube(db), "database": _database(db),
         "stalled": [st.__dict__ for st in recovery.find_stalled(db)],
-        "config": {"secret_key_configured": bool(s.secret_key), "ffmpeg_path": shutil.which(s.ffmpeg_path or "ffmpeg") or s.ffmpeg_path or None,
+        "config": {"secret_key_configured": bool(s.secret_key), "ffmpeg_path": _ffmpeg_path(),
                    "dashboard_auth_enabled": bool(s.dashboard_password), "app_version": s.app_version,
                    "limits": {"min_free_disk_gb": s.min_free_disk_gb, "min_free_ram_mb": s.min_free_ram_mb,
                               "ram_warn_percent": s.ram_warn_percent, "disk_warn_gb": s.disk_warn_gb,

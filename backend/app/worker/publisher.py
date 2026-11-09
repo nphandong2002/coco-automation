@@ -28,6 +28,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core import storage
+from app.worker.util import interruptible_wait
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.integrations.youtube.client import AUTH, PERMANENT, QUOTA, RETRYABLE, ApiError, YouTubeClient, backoff_seconds
@@ -36,6 +37,8 @@ from app.models.enums import CredentialStatus, JobStatus, LogLevel, PrivacyStatu
 from app.services import activity, youtube_service
 from app.services.publish_service import add_history, has_event
 
+# Windows has no SIGTERM delivery; the supervisor sends CTRL_BREAK (SIGBREAK) for a graceful stop
+_EXTRA_SIGNALS = (signal.SIGBREAK,) if hasattr(signal, "SIGBREAK") else ()
 log = logging.getLogger("coco.publisher")
 PUBLISH_LOCK_KEY = 72_700_002
 THUMB_MAX_BYTES = 2 * 1024 * 1024
@@ -94,7 +97,7 @@ class PublishWorker:
             log.info("Signal %s received, stopping…", signum)
             self.stop_event.set()
 
-        for sig in (signal.SIGTERM, signal.SIGINT):
+        for sig in (signal.SIGTERM, signal.SIGINT, *_EXTRA_SIGNALS):
             try:
                 signal.signal(sig, _handler)
             except (ValueError, OSError):
@@ -145,7 +148,7 @@ class PublishWorker:
                 break
             log.warning("Another publish worker is running — waiting")
             self.heartbeat()
-            self.stop_event.wait(10)
+            interruptible_wait(self.stop_event, 10)
         if self.stop_event.is_set():
             self._shutdown()
             return 0
@@ -166,7 +169,7 @@ class PublishWorker:
                 if time.monotonic() - last_beat >= self.settings.worker_heartbeat_seconds:
                     self.heartbeat()
                     last_beat = time.monotonic()
-                self.stop_event.wait(self.settings.publish_poll_seconds)
+                interruptible_wait(self.stop_event, self.settings.publish_poll_seconds)
         finally:
             self._shutdown()
         return 0

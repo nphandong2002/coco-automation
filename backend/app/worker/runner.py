@@ -27,6 +27,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from app.core import storage
+from app.worker.util import interruptible_wait
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.models import Channel, ContentProject, Video, VideoJob, WorkerStatus
@@ -36,6 +37,8 @@ from app.render.pipeline import RenderFailed, render
 from app.render.video import estimate_size_bytes
 from app.services import activity, render_service
 
+# Windows has no SIGTERM delivery; the supervisor sends CTRL_BREAK (SIGBREAK) for a graceful stop
+_EXTRA_SIGNALS = (signal.SIGBREAK,) if hasattr(signal, "SIGBREAK") else ()
 log = logging.getLogger("coco.worker")
 
 RENDER_LOCK_KEY = 72_700_001
@@ -63,7 +66,7 @@ class RenderWorker:
             log.info("Signal %s received, stopping…", signum)
             self.stop_event.set()
 
-        for sig in (signal.SIGTERM, signal.SIGINT):
+        for sig in (signal.SIGTERM, signal.SIGINT, *_EXTRA_SIGNALS):
             try:
                 signal.signal(sig, _handler)
             except (ValueError, OSError):  # not in main thread / unsupported
@@ -120,7 +123,7 @@ class RenderWorker:
                 break
             log.warning("Another render worker holds the render lock — waiting (only one heavy render at a time)")
             self.heartbeat()
-            self.stop_event.wait(10)
+            interruptible_wait(self.stop_event, 10)
         if self.stop_event.is_set():
             self._shutdown()
             return 0
@@ -137,7 +140,7 @@ class RenderWorker:
                     if time.monotonic() - last_beat >= self.settings.worker_heartbeat_seconds:
                         self.heartbeat()
                         last_beat = time.monotonic()
-                    self.stop_event.wait(self.settings.worker_poll_seconds)
+                    interruptible_wait(self.stop_event, self.settings.worker_poll_seconds)
                     continue
                 job_id = self.claim()
                 if job_id is not None:
@@ -151,7 +154,7 @@ class RenderWorker:
                 if time.monotonic() - last_beat >= self.settings.worker_heartbeat_seconds:
                     self.heartbeat()
                     last_beat = time.monotonic()
-                self.stop_event.wait(self.settings.worker_poll_seconds)
+                interruptible_wait(self.stop_event, self.settings.worker_poll_seconds)
         finally:
             self._shutdown()
         return 0

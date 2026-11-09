@@ -141,8 +141,11 @@ def kill_orphan_ffmpeg() -> int:
             name = (p.info["name"] or "").lower()
             if not name.startswith("ffmpeg") or not any(root in a for a in (p.info["cmdline"] or [])):
                 continue
-            parent = psutil.Process(p.info["ppid"]) if p.info["ppid"] else None
-            alive_parent = parent is not None and p.info["ppid"] > 1 and parent.is_running()
+            try:
+                parent = psutil.Process(p.info["ppid"]) if p.info["ppid"] else None
+                alive_parent = parent is not None and p.info["ppid"] > 1 and parent.is_running()
+            except psutil.NoSuchProcess:  # Windows keeps the dead parent PID instead of re-parenting to init
+                alive_parent = False
             if not alive_parent:
                 terminate_tree(p.info["pid"], 5)
                 n += 1

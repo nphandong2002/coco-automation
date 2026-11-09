@@ -7,6 +7,15 @@ Nền tảng quản lý nhiều kênh YouTube phong cách Cozy / Study With Me /
 >
 > **Nâng cấp từ Phase 3/4:** chạy `scripts/restart.sh` (tự áp dụng migration `0004`–`0005`; nếu đã cài systemd, chạy lại `install.sh --systemd` để có health check/logrotate), rồi **ngắt kết nối và kết nối lại** các kênh YouTube đã nối trước đó nếu Analytics báo thiếu quyền (xem [YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md)).
 
+## Cài đặt nhanh trên Windows 10/11 (không cần admin)
+
+```powershell
+install-windows.cmd        # nhấp đúp (cần Python 3.10+): tự tạo database riêng, FFmpeg đóng gói sẵn
+coco start                 # một lệnh khởi chạy toàn bộ; mở http://localhost:8080
+```
+Lệnh khác: `coco stop | restart | status | logs | backup | restore | autostart on | firewall` — chi tiết: [docs/WINDOWS.md](docs/WINDOWS.md).
+Tạo gói chép sang máy khác: `scripts\windows\make-package.ps1`.
+
 ## Cài đặt nhanh (Ubuntu 22.04 / 24.04)
 
 ```bash

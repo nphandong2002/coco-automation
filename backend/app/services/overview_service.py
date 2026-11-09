@@ -116,6 +116,15 @@ def overview(db: Session) -> Overview:
     )
 
 
+def _ffmpeg_path() -> str | None:
+    """The ffmpeg the renderer will really use (FFMPEG_PATH, PATH, or the bundled binary on Windows)."""
+    try:
+        from app.render.ffmpeg import ffmpeg_bin
+        return str(ffmpeg_bin())
+    except Exception:  # noqa: BLE001 - FFmpegNotFound
+        return None
+
+
 def system_info(db: Session) -> SystemInfo:
     settings = get_settings()
     ok, msg = check_database()
@@ -133,7 +142,7 @@ def system_info(db: Session) -> SystemInfo:
         database_ok=ok,
         database_message=msg,
         migration_revision=revision,
-        ffmpeg_path=shutil.which("ffmpeg"),
+        ffmpeg_path=_ffmpeg_path(),
         storage_dir=str(root),
         disk_total_gb=round(disk.total / 1024**3, 1),
         disk_free_gb=round(disk.free / 1024**3, 1),

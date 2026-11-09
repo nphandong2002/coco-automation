@@ -1,0 +1,3 @@
+# Extra packages for the portable/Windows install (scripts\windows\install.ps1 installs them)
+pgserver==0.1.4        # bundled PostgreSQL binaries -> private database, no admin rights/service
+imageio-ffmpeg==0.8.1  # bundled FFmpeg (used when ffmpeg is not already on PATH)

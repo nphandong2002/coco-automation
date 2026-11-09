@@ -18,12 +18,15 @@ from datetime import datetime, timezone
 import httpx
 from sqlalchemy import text
 
+from app.worker.util import interruptible_wait
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.models import WorkerStatus
 from app.models.enums import WorkerState
 from app.services import analytics_sync
 
+# Windows has no SIGTERM delivery; the supervisor sends CTRL_BREAK (SIGBREAK) for a graceful stop
+_EXTRA_SIGNALS = (signal.SIGBREAK,) if hasattr(signal, "SIGBREAK") else ()
 log = logging.getLogger("coco.analytics.worker")
 ANALYTICS_LOCK_KEY = 72_700_003
 
@@ -48,7 +51,7 @@ class AnalyticsWorker:
             log.info("Signal %s received, stopping…", signum)
             self.stop_event.set()
 
-        for sig in (signal.SIGTERM, signal.SIGINT):
+        for sig in (signal.SIGTERM, signal.SIGINT, *_EXTRA_SIGNALS):
             try:
                 signal.signal(sig, _handler)
             except (ValueError, OSError):
@@ -97,7 +100,7 @@ class AnalyticsWorker:
                 break
             log.warning("Another analytics worker is running — waiting")
             self.heartbeat()
-            self.stop_event.wait(10)
+            interruptible_wait(self.stop_event, 10)
         if self.stop_event.is_set():
             self._shutdown()
             return 0
@@ -124,7 +127,7 @@ class AnalyticsWorker:
                 if time.monotonic() - last_beat >= self.settings.worker_heartbeat_seconds:
                     self.heartbeat()
                     last_beat = time.monotonic()
-                self.stop_event.wait(self.settings.analytics_poll_seconds)
+                interruptible_wait(self.stop_event, self.settings.analytics_poll_seconds)
         finally:
             self._shutdown()
         return 0
