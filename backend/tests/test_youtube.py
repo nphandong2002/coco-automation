@@ -206,7 +206,7 @@ def test_callback_connects_channel_and_encrypts_token(client, channel, http, yt)
 
 
 def test_same_youtube_channel_cannot_link_two_coco_channels(client, channel, http):
-    a, b = channel("a", "A"), channel("b", "B")
+    a, b = channel("chan-a", "Chan A"), channel("chan-b", "Chan B")
     with SessionLocal() as db:
         youtube_service.complete_connect(db, "c", oauth.make_state(a["id"]), http)
     with SessionLocal() as db, pytest.raises(Exception) as ei:

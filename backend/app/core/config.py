@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Coco Automation"
-    app_version: str = "0.2.0"
+    app_version: str = "0.4.0"
     environment: str = "production"
 
     host: str = "0.0.0.0"
@@ -76,6 +76,18 @@ class Settings(BaseSettings):
     publish_retry_base_sec: int = 120      # exponential backoff base
     publish_retry_max_sec: int = 6 * 3600
     publish_poll_seconds: float = 5.0
+
+    # ---------------------------------------------------------------- Phase 4: analytics
+    analytics_sync_interval_minutes: int = 360   # auto-sync each connected channel this often
+    analytics_initial_days: int = 90             # first sync looks back this many days
+    analytics_overlap_days: int = 7              # re-read recent days: YouTube revises them
+    analytics_max_backfill_days: int = 730
+    analytics_max_videos_per_sync: int = 60      # per channel, oldest-synced first
+    analytics_max_retention_per_sync: int = 15   # retention curves fetched per channel per sync
+    analytics_retention_min_age_days: int = 3
+    analytics_retention_refresh_hours: int = 24
+    analytics_preliminary_days: int = 3          # newest days are flagged "preliminary"
+    analytics_poll_seconds: float = 15.0
 
 
 @lru_cache

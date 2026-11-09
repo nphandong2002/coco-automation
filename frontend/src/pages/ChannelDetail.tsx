@@ -9,8 +9,9 @@ import { fmtDate, useAction, useApi } from "../lib/hooks";
 import { ProjectTable, VideoList } from "../components/production";
 import { YoutubePanel } from "../components/publishing";
 import { NewProjectModal } from "./ContentLibrary";
+import { AnalyticsView } from "./Analytics";
 
-type Tab = "overview" | "brand" | "characters" | "content" | "videos" | "youtube" | "activity";
+type Tab = "overview" | "brand" | "characters" | "content" | "videos" | "youtube" | "analytics" | "activity";
 
 export default function ChannelDetail() {
   const id = Number(useParams().channelId);
@@ -61,7 +62,7 @@ export default function ChannelDetail() {
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { key: "overview", label: "Tổng quan" }, { key: "brand", label: "Thương hiệu & lịch đăng" },
         { key: "characters", label: "Nhân vật" }, { key: "content", label: "Nội dung" }, { key: "videos", label: "Video" },
-        { key: "youtube", label: "YouTube" }, { key: "activity", label: "Hoạt động" },
+        { key: "youtube", label: "YouTube" }, { key: "analytics", label: "Analytics" }, { key: "activity", label: "Hoạt động" },
       ]} />
 
       {tab === "overview" && <OverviewTab ch={ch} summary={summary.data} />}
@@ -85,6 +86,7 @@ export default function ChannelDetail() {
       {tab === "content" && <ContentTab channelId={id} />}
       {tab === "videos" && <VideosTab channelId={id} />}
       {tab === "youtube" && <YoutubePanel channelId={id} onChanged={reload} />}
+      {tab === "analytics" && <AnalyticsView channelId={id} />}
       {tab === "activity" && <ActivityTab channelId={id} />}
 
       {modal === "clone" && <CloneModal ch={ch} onClose={() => setModal(null)} onDone={(c) => nav(`/channels/${c.id}`)} />}

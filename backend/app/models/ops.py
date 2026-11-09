@@ -5,11 +5,13 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -19,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, str_enum, utcnow
-from app.models.enums import DataSource, JobStatus, LogLevel, WorkerState
+from app.models.enums import DataSource, JobStatus, LogLevel, SyncStatus, WorkerState
 
 
 class AnalyticsDaily(Base):
@@ -51,6 +53,7 @@ class AnalyticsVideo(Base):
     __tablename__ = "analytics_video"
     __table_args__ = (
         UniqueConstraint("video_id", "day"),
+        Index("ix_analytics_video_channel_day", "channel_id", "day"),
         ForeignKeyConstraint(
             ["channel_id", "video_id"],
             ["videos.channel_id", "videos.id"],
@@ -74,6 +77,73 @@ class AnalyticsVideo(Base):
     comments: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     data_source: Mapped[DataSource] = mapped_column(str_enum(DataSource, "data_source"), nullable=False)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AnalyticsChannelSnapshot(Base):
+    """Channel totals as reported by YouTube Data API (subscriber count is NOT in the daily report)."""
+
+    __tablename__ = "analytics_channel_snapshots"
+    __table_args__ = (UniqueConstraint("channel_id", "day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    # NULL when the owner hides the subscriber count (YouTube then returns no number)
+    subscribers: Mapped[int | None] = mapped_column(BigInteger)
+    subscribers_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    total_views: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    video_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    data_source: Mapped[DataSource] = mapped_column(str_enum(DataSource, "data_source"), nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AnalyticsRetention(Base):
+    """Audience retention curve of one video (audienceWatchRatio per elapsed-time ratio)."""
+
+    __tablename__ = "analytics_video_retention"
+    __table_args__ = (
+        UniqueConstraint("video_id"),
+        ForeignKeyConstraint(
+            ["channel_id", "video_id"],
+            ["videos.channel_id", "videos.id"],
+            name="fk_analytics_retention_video",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    video_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # [[elapsed_ratio 0..1, audience_watch_ratio], ...] exactly as returned by YouTube
+    points: Mapped[list] = mapped_column(default=list, nullable=False)
+    data_source: Mapped[DataSource] = mapped_column(str_enum(DataSource, "data_source"), nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AnalyticsSyncState(Base):
+    """Per-channel sync bookkeeping: lets the UI tell 'real data' from 'not synced yet'."""
+
+    __tablename__ = "analytics_sync_state"
+
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("channels.id", ondelete="CASCADE"), primary_key=True
+    )
+    status: Mapped[SyncStatus] = mapped_column(str_enum(SyncStatus, "sync_status"), nullable=False)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # last day (inclusive) whose channel-level data was written; next sync restarts a few days earlier
+    synced_through: Mapped[date | None] = mapped_column(Date)
+    days_written: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    videos_synced: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    videos_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # scope | auth | quota | network | api | internal
+    error_kind: Mapped[str | None] = mapped_column(String(16))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    retry_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SchedulerJob(TimestampMixin, Base):

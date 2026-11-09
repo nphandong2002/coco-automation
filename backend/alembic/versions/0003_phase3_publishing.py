@@ -20,8 +20,8 @@ def _check(values):
 
 
 def upgrade() -> None:
-    op.drop_constraint('ck_worker_status_worker_state', 'worker_status', type_='check')
-    op.create_check_constraint('ck_worker_status_worker_state', 'worker_status', _check(NEW))
+    op.drop_constraint(op.f('ck_worker_status_worker_state'), 'worker_status', type_='check')
+    op.create_check_constraint(op.f('ck_worker_status_worker_state'), 'worker_status', _check(NEW))
     op.create_index('uq_publishing_jobs_active_video', 'publishing_jobs', ['video_id'], unique=True,
                     postgresql_where=sa.text("status IN ('queued', 'running')"))
 
@@ -29,5 +29,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('uq_publishing_jobs_active_video', table_name='publishing_jobs')
     op.execute("UPDATE worker_status SET state='idle' WHERE state='uploading'")
-    op.drop_constraint('ck_worker_status_worker_state', 'worker_status', type_='check')
-    op.create_check_constraint('ck_worker_status_worker_state', 'worker_status', _check(OLD))
+    op.drop_constraint(op.f('ck_worker_status_worker_state'), 'worker_status', type_='check')
+    op.create_check_constraint(op.f('ck_worker_status_worker_state'), 'worker_status', _check(OLD))

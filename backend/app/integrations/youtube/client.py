@@ -124,6 +124,20 @@ class YouTubeClient:
             if not token:
                 return out
 
+    def get_json(self, url: str, params: dict) -> dict:
+        """Authenticated GET returning JSON (token refresh + error classification included)."""
+        return self._request("GET", url, params=params).json()
+
+    def videos_statistics(self, video_ids: list[str]) -> dict[str, dict]:
+        """Data API `videos.list` (statistics + status), batched by 50. Missing/private-deleted ids are absent."""
+        out: dict[str, dict] = {}
+        for i in range(0, len(video_ids), 50):
+            batch = video_ids[i:i + 50]
+            data = self.get_json(f"{API}/videos", {"part": "statistics,status", "id": ",".join(batch), "maxResults": 50})
+            for item in data.get("items", []):
+                out[item["id"]] = item
+        return out
+
     def video_status(self, video_id: str) -> dict | None:
         r = self._request("GET", f"{API}/videos", params={"part": "status,processingDetails", "id": video_id})
         items = r.json().get("items") or []

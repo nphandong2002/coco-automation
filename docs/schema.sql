@@ -567,3 +567,145 @@ ALTER TABLE ONLY public.videos
 ALTER TABLE ONLY public.youtube_credentials
     ADD CONSTRAINT fk_youtube_credentials_channel_id_channels FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 \unrestrict olplMDgx4hqG8GjkTRQZ6kwJtLsC9a4ZFZxGNCHYsYxy3SgI37hqOsCn8qkN6u8
+
+-- ===== Phase 4 (migration 0004): analytics_channel_snapshots, analytics_video_retention, analytics_sync_state =====
+-- (+ index ix_analytics_video_channel_day on analytics_video, worker_status.state accepts 'syncing')
+
+
+
+
+
+
+CREATE TABLE public.analytics_channel_snapshots (
+    id integer NOT NULL,
+    channel_id integer NOT NULL,
+    day date NOT NULL,
+    subscribers bigint,
+    subscribers_hidden boolean DEFAULT false NOT NULL,
+    total_views bigint DEFAULT '0'::bigint NOT NULL,
+    video_count integer DEFAULT 0 NOT NULL,
+    data_source character varying(32) NOT NULL,
+    synced_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_analytics_channel_snapshots_data_source CHECK (((data_source)::text = ANY ((ARRAY['youtube_api'::character varying, 'estimated'::character varying])::text[])))
+);
+
+
+
+CREATE SEQUENCE public.analytics_channel_snapshots_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.analytics_channel_snapshots_id_seq OWNED BY public.analytics_channel_snapshots.id;
+
+
+
+CREATE TABLE public.analytics_sync_state (
+    channel_id integer NOT NULL,
+    status character varying(32) NOT NULL,
+    last_attempt_at timestamp with time zone,
+    last_success_at timestamp with time zone,
+    synced_through date,
+    days_written integer DEFAULT 0 NOT NULL,
+    videos_synced integer DEFAULT 0 NOT NULL,
+    videos_failed integer DEFAULT 0 NOT NULL,
+    error_kind character varying(16),
+    last_error text,
+    retry_after timestamp with time zone,
+    CONSTRAINT ck_analytics_sync_state_sync_status CHECK (((status)::text = ANY ((ARRAY['ok'::character varying, 'partial'::character varying, 'error'::character varying])::text[])))
+);
+
+
+
+CREATE TABLE public.analytics_video_retention (
+    id integer NOT NULL,
+    channel_id integer NOT NULL,
+    video_id integer NOT NULL,
+    points json NOT NULL,
+    data_source character varying(32) NOT NULL,
+    synced_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_analytics_video_retention_data_source CHECK (((data_source)::text = ANY ((ARRAY['youtube_api'::character varying, 'estimated'::character varying])::text[])))
+);
+
+
+
+CREATE SEQUENCE public.analytics_video_retention_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.analytics_video_retention_id_seq OWNED BY public.analytics_video_retention.id;
+
+
+
+ALTER TABLE ONLY public.analytics_channel_snapshots ALTER COLUMN id SET DEFAULT nextval('public.analytics_channel_snapshots_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.analytics_video_retention ALTER COLUMN id SET DEFAULT nextval('public.analytics_video_retention_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.analytics_channel_snapshots
+    ADD CONSTRAINT pk_analytics_channel_snapshots PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.analytics_sync_state
+    ADD CONSTRAINT pk_analytics_sync_state PRIMARY KEY (channel_id);
+
+
+
+ALTER TABLE ONLY public.analytics_video_retention
+    ADD CONSTRAINT pk_analytics_video_retention PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.analytics_channel_snapshots
+    ADD CONSTRAINT uq_analytics_channel_snapshots_channel_id_day UNIQUE (channel_id, day);
+
+
+
+ALTER TABLE ONLY public.analytics_video_retention
+    ADD CONSTRAINT uq_analytics_video_retention_video_id UNIQUE (video_id);
+
+
+
+CREATE INDEX ix_analytics_channel_snapshots_channel_id ON public.analytics_channel_snapshots USING btree (channel_id);
+
+
+
+CREATE INDEX ix_analytics_video_retention_channel_id ON public.analytics_video_retention USING btree (channel_id);
+
+
+
+ALTER TABLE ONLY public.analytics_channel_snapshots
+    ADD CONSTRAINT fk_analytics_channel_snapshots_channel_id_channels FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.analytics_video_retention
+    ADD CONSTRAINT fk_analytics_retention_video FOREIGN KEY (channel_id, video_id) REFERENCES public.videos(channel_id, id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.analytics_sync_state
+    ADD CONSTRAINT fk_analytics_sync_state_channel_id_channels FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.analytics_video_retention
+    ADD CONSTRAINT fk_analytics_video_retention_channel_id_channels FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+

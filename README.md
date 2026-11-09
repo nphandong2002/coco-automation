@@ -2,8 +2,10 @@
 
 Nền tảng quản lý nhiều kênh YouTube phong cách Cozy / Study With Me / ASMR / Pomodoro: mỗi kênh có thương hiệu, nhân vật, nội dung, lịch đăng và thống kê **độc lập**. Chạy trên Ubuntu (PC 8 GB RAM), dashboard truy cập qua trình duyệt trong mạng LAN.
 
-> **Trạng thái: Phase 3** — Phase 1–2 (kênh, nhân vật, nội dung, render FFmpeg) + YouTube OAuth theo kênh, upload, Publishing Scheduler.
-> Chưa có: Analytics (Phase 4), Monitoring/Recovery nâng cao (Phase 5). Phase 2–3: code và test đã viết, bộ test cần PostgreSQL thật (`TEST_DATABASE_URL`).
+> **Trạng thái: Phase 4** — Phase 1–3 (kênh, nhân vật, nội dung, render FFmpeg, YouTube OAuth theo kênh, upload, Publishing Scheduler) + **Analytics**: đồng bộ YouTube Analytics API, dashboard thống kê, so sánh video/kênh, chấm điểm hiệu quả và đề xuất nội dung.
+> Chưa có: Monitoring/Recovery nâng cao (Phase 5). Bộ test cần PostgreSQL thật (`TEST_DATABASE_URL`).
+>
+> **Nâng cấp từ Phase 3:** chạy `scripts/restart.sh` (tự áp dụng migration `0004`), rồi **ngắt kết nối và kết nối lại** các kênh YouTube đã nối trước đó nếu Analytics báo thiếu quyền (xem [YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md)).
 
 ## Cài đặt nhanh (Ubuntu 22.04 / 24.04)
 

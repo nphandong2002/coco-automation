@@ -7,7 +7,7 @@ kỹ thuật vượt CAPTCHA/2FA hay né giới hạn API.
 ## 1. Tạo OAuth client (một lần cho cả hệ thống)
 
 1. Vào <https://console.cloud.google.com/> → tạo project (vd. `coco-automation`).
-2. **APIs & Services → Library**: bật **YouTube Data API v3** và **YouTube Analytics API** (Analytics dùng ở Phase 4).
+2. **APIs & Services → Library**: bật **YouTube Data API v3** và **YouTube Analytics API** (Analytics dùng để đồng bộ thống kê — Phase 4).
 3. **OAuth consent screen**: chọn *External*, điền tên ứng dụng và email. Thêm các scope:
    `youtube.upload`, `youtube`, `yt-analytics.readonly`.
 4. **Quan trọng — trạng thái Testing**: ứng dụng ở trạng thái *Testing* chỉ cho phép các *Test users* bạn thêm,
@@ -64,7 +64,24 @@ Nếu token bị thu hồi (đổi mật khẩu Google, gỡ quyền…), kênh 
 Upload chạy nền (một video mỗi lần), tự thử lại với backoff khi lỗi mạng/5xx, và **tiếp tục từ byte đã gửi** sau khi
 khởi động lại; ID video YouTube được ghi vào DB ngay sau upload nên không bao giờ upload trùng.
 
-## 5. Xử lý sự cố
+## 5. Phân quyền OAuth cho Analytics
+
+Từ Phase 4 ứng dụng xin thêm quyền chỉ-đọc `yt-analytics.readonly` (cùng với `youtube.upload` và `youtube`).
+Kênh đã kết nối **trước** Phase 4 có thể chưa có quyền này → trang Analytics báo *“thiếu quyền Analytics”*:
+mở kênh → tab **YouTube** → **Ngắt kết nối** → **Kết nối YouTube** lại, và đảm bảo quyền xem báo cáo Analytics được tích trên màn hình đồng ý của Google.
+Nếu Google trả 403 dù đã cấp quyền: kiểm tra đã **bật YouTube Analytics API** trong Google Cloud (mục 1).
+
+## 6. Analytics: đồng bộ số liệu
+
+- Worker `analytics` (chạy cùng `scripts/start.sh`) đồng bộ từng kênh một: số liệu theo ngày của kênh, theo ngày của từng video, đường giữ chân,
+  và số subscriber hiện tại (Data API — báo cáo theo ngày không có tổng subscriber).
+- Chỉ đọc dữ liệu **chính thức** qua API, không scraping. Mỗi lần đồng bộ đọc lại 7 ngày gần nhất vì YouTube điều chỉnh số liệu; dữ liệu 3 ngày gần nhất chỉ là “sơ bộ”.
+- Kênh **ẩn số subscriber** sẽ không có tổng subscriber (hiển thị “—”, không phải 0).
+- YouTube Analytics API có hạn mức riêng; nếu gặp `quotaExceeded`, kênh đó chờ tới nửa đêm giờ Thái Bình Dương rồi tự thử lại.
+- Thống kê từng video chỉ có cho video đăng qua Coco (có ID YouTube). Video đăng thủ công ngoài Coco vẫn nằm trong số liệu tổng của kênh.
+- Đường giữ chân chỉ có sau ≥ 3 ngày và khi video đủ lượt xem để YouTube trả dữ liệu; nếu không có, hệ thống để trống thay vì ước lượng.
+
+## 7. Xử lý sự cố
 
 | Triệu chứng | Cách xử lý |
 |---|---|
@@ -74,3 +91,6 @@ khởi động lại; ID video YouTube được ghi vào DB ngay sau upload nên
 | Không nhận refresh token | Gỡ quyền tại <https://myaccount.google.com/permissions> rồi kết nối lại |
 | Kênh "Cần kết nối lại" | Token bị thu hồi/hết hạn → Kết nối lại; tác vụ đang chờ tự chạy tiếp |
 | Tác vụ "Đang chờ" mãi | Kiểm tra *Upload worker* trên trang Publishing; xem `logs/server.out` |
+| Analytics: "thiếu quyền Analytics" / 403 | Bật YouTube Analytics API; ngắt kết nối rồi kết nối lại kênh (mục 5) |
+| Analytics: "worker chưa chạy" | `scripts/status.sh`, `scripts/restart.sh`. Chạy tay: `python -m app.worker --kind analytics` |
+| Analytics: mọi thứ "Chưa đồng bộ" | Chưa bấm *Đồng bộ ngay*, hoặc khoảng lọc chưa có dữ liệu; xem lỗi ở thanh đồng bộ |

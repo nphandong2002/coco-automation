@@ -57,7 +57,7 @@ Vì thế kênh mới tạo hiển thị *Disconnected* cho tới khi kết nố
 - `channel_characters`: quyền sử dụng + vai trò (chính/phụ) **theo từng kênh**. Kênh sở hữu luôn có 1 dòng `is_owner=true`. Kênh khác chỉ dùng được khi chủ sở hữu cấp quyền; kênh được cấp quyền chỉ đọc. Index duy nhất có điều kiện đảm bảo **tối đa 1 nhân vật chính / kênh**.
 - Phase 2: `content_projects` ghim `character_version_id` → video render lại sau này vẫn đúng ngoại hình.
 
-## 6. Database (16 bảng)
+## 6. Database (19 bảng)
 
 | Nhóm | Bảng |
 |---|---|
@@ -65,7 +65,7 @@ Vì thế kênh mới tạo hiển thị *Disconnected* cho tới khi kết nố
 | Nhân vật | `characters`, `character_versions`, `channel_characters` |
 | Nội dung & sản xuất | `content_ideas` (UNIQUE channel+fingerprint chống trùng lặp), `content_projects`, `video_templates`, `assets` (bắt buộc licence), `video_jobs`, `videos` |
 | Đăng | `publishing_jobs` (mặc định `private`, retry, resumable upload) |
-| Thống kê | `analytics_daily`, `analytics_video` (cột `data_source`: `youtube_api` / `estimated`) |
+| Thống kê | `analytics_daily`, `analytics_video` (cột `data_source`: `youtube_api` / `estimated`), `analytics_channel_snapshots` (subscriber/tổng views từ Data API), `analytics_video_retention` (đường giữ chân), `analytics_sync_state` (trạng thái đồng bộ theo kênh) |
 | Vận hành | `scheduler_jobs` (dedupe_key, timeout, attempts), `system_logs` |
 
 DDL đầy đủ: [schema.sql](schema.sql). Migration: `backend/alembic/versions/`.
@@ -82,5 +82,32 @@ DDL đầy đủ: [schema.sql](schema.sql). Migration: `backend/alembic/versions
 
 - **Phase 2**: `services/content_service.py`, `asset_service.py`, `worker/` (process riêng, systemd unit thứ 2), `render/` (timeline → filtergraph FFmpeg, `-threads` giới hạn, `nice`, render 1 job nặng/lần, ffprobe QC sau render).
 - **Phase 3**: `integrations/youtube/` (google-auth-oauthlib, upload resumable, thumbnails, playlist), scheduler tạo `publishing_jobs` từ `channels.publish_schedule`.
-- **Phase 4**: sync YouTube Analytics API → `analytics_*`, Recharts, so sánh/khuyến nghị dựa trên watch time, AVD, retention, subscriber gained.
+- **Phase 4 (đã làm)**: xem mục 9.
 - **Phase 5**: trang Monitoring (CPU/RAM/disk/FFmpeg/queue/API errors), recovery job treo, dọn file tạm.
+
+## 9. Analytics (Phase 4)
+
+```
+analytics worker --> services/analytics_sync.py --> integrations/youtube/analytics.py (reports.query)
+ (advisory lock,       | upsert idempotent            + client.py (Data API: channels / videos statistics)
+  scheduler_jobs)      v
+                analytics_daily / analytics_video / analytics_channel_snapshots /
+                analytics_video_retention / analytics_sync_state
+                       |
+API /api/analytics/* --> services/analytics_service.py (đọc, gộp, so sánh) + analytics_scoring.py (hàm thuần)
+                       v
+                React: pages/Analytics.tsx (+ tab Analytics của kênh), Recharts
+```
+
+- **Hàng đợi:** `POST /api/channels/{id}/analytics/sync` ghi `scheduler_jobs` (`job_type=analytics_sync`, `dedupe_key=analytics_sync:<channel_id>` → mỗi kênh tối đa một job chờ/chạy;
+  khóa được nhả khi job kết thúc). Worker tự xếp lịch từng kênh theo `ANALYTICS_SYNC_INTERVAL_MINUTES`. Job `running` của worker đã chết được xếp lại khi worker khởi động
+  (khóa advisory bảo đảm không còn worker khác).
+- **Tách biệt kênh:** mỗi kênh đồng bộ bằng token riêng; lỗi (token thu hồi, quota, thiếu scope, 403) chỉ ghi vào `analytics_sync_state` của kênh đó (`error_kind`: `scope|auth|quota|network|api|internal`,
+  `retry_after` cho quota). Lỗi `scope/auth` không được thử lại tự động cho tới khi người dùng kết nối lại. Lỗi một video → trạng thái `partial`, các video khác vẫn được lưu.
+- **Trung thực số liệu:** chỉ lưu những gì YouTube trả về (`data_source=youtube_api`); không có dòng → `null` + `not_synced`, không điền 0. Ngày mới nhất gắn nhãn *sơ bộ*.
+  Điểm, nhãn, tăng trưởng, đề xuất mang `source: "calculated"`. Giá trị `estimated` của `data_source` được giữ cho tương lai nhưng **không** được ghi ở Phase 4.
+- **Điểm hiệu quả:** percentile (mid-rank) trong cùng kênh trên 6 chỉ số chuẩn hóa theo số ngày hiển thị (trọng số ở `analytics_scoring.WEIGHTS`), phân bổ lại trọng số khi thiếu chỉ số;
+  nhãn: ≥65 *cao*, ≤35 *thấp*; cần ≥ `MIN_COHORT=4` video đủ ≥3 ngày, nếu không nhãn là `insufficient_data`. Điểm kèm `components` để giải thích.
+- **Đề xuất:** luật có điều kiện kích hoạt rõ ràng (chênh điểm ≥10 giữa chủ đề/thời lượng, ≥3 mẫu cho khung giờ, giữ chân 10% đầu <50%, kênh >14 ngày không đăng…), luôn kèm `evidence` và `confidence` theo cỡ mẫu.
+- **Giới hạn đã biết:** khung giờ đăng dùng `videos.published_at` (giờ hẹn công khai hoặc lúc upload Public); video đổi sang Public thủ công trong Studio không có giờ chính xác nên bị loại khỏi phân tích khung giờ.
+  Tăng trưởng subscriber theo % cần ≥2 snapshot trong khoảng lọc (snapshot ghi mỗi lần đồng bộ).

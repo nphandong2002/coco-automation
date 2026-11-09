@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import assets, channels, characters, content, production, publishing, system, youtube
+from app.api.routes import analytics, assets, channels, characters, content, production, publishing, system, youtube
 from app.core.config import get_settings
 from app.core.logging_setup import setup_logging
 from app.core.security import SecretKeyMissing
@@ -88,7 +88,7 @@ async def unhandled(_: Request, exc: Exception):
 
 # ------------------------------------------------------------------ routes
 for r in (system.router, channels.router, characters.router, assets.router, content.router,
-          production.router, youtube.router, publishing.router):
+          production.router, youtube.router, publishing.router, analytics.router):
     app.include_router(r, prefix="/api")
 
 app.mount("/media", StaticFiles(directory=str(storage_root())), name="media")

@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.database import check_database
 from app.core.storage import storage_root
 from app.models import (
+    AnalyticsChannelSnapshot,
     AnalyticsDaily,
     Channel,
     Character,
@@ -61,6 +62,21 @@ def _metric(db: Session, column) -> MetricValue:  # noqa: ANN001
     return MetricValue(value=float(total or 0), source=DataSource.YOUTUBE_API.value, synced_at=synced)
 
 
+def _subscribers_metric(db: Session) -> MetricValue:
+    """Sum of each channel's latest Data-API subscriber count (hidden counts are excluded)."""
+    t = AnalyticsChannelSnapshot
+    latest = select(t.channel_id.label("cid"), func.max(t.day).label("d")).group_by(t.channel_id).subquery()
+    rows = db.execute(
+        select(t.subscribers, t.synced_at)
+        .join(latest, (latest.c.cid == t.channel_id) & (latest.c.d == t.day))
+        .where(t.subscribers.is_not(None))
+    ).all()
+    if not rows:
+        return MetricValue(value=None, source="not_synced")
+    return MetricValue(value=float(sum(r[0] for r in rows)), source=DataSource.YOUTUBE_API.value,
+                       synced_at=max(r[1] for r in rows))
+
+
 def overview(db: Session) -> Overview:
     channels = list_channels(db)
     by_status: dict[str, int] = {"active": 0, "paused": 0, "error": 0, "disconnected": 0}
@@ -92,6 +108,7 @@ def overview(db: Session) -> Overview:
             select(func.count()).select_from(PublishingJob)
             .where(PublishingJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]))),
         total_views=_metric(db, AnalyticsDaily.views),
+        total_subscribers=_subscribers_metric(db),
         total_subscribers_gained=_metric(db, AnalyticsDaily.subscribers_gained),
         total_watch_time_minutes=_metric(db, AnalyticsDaily.watch_time_minutes),
         daily_views=[{"day": d.isoformat(), "views": int(v)} for d, v in daily],

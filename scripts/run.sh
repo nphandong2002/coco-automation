@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Foreground supervisor (used by systemd and start.sh): migrations, then API + render worker + publish worker.
+# Foreground supervisor (used by systemd and start.sh): migrations, then API + render + publish + analytics workers.
 # One command starts everything; stopping this script (SIGTERM) stops all three gracefully.
 source "$(dirname "$0")/common.sh"
 load_env
@@ -41,7 +41,8 @@ trap shutdown TERM INT
 
 supervise render
 supervise publish
-info "Khởi chạy Coco Automation tại http://${HOST:-0.0.0.0}:$PORT (API + render worker + publish worker)"
+supervise analytics
+info "Khởi chạy Coco Automation tại http://${HOST:-0.0.0.0}:$PORT (API + render + publish + analytics workers)"
 # Single uvicorn worker on purpose: heavy rendering is serialized (8 GB RAM host).
 "$VENV/bin/uvicorn" app.main:app --host "${HOST:-0.0.0.0}" --port "$PORT" --workers 1 \
   --proxy-headers --timeout-graceful-shutdown 30 &

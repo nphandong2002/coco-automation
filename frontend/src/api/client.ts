@@ -2,6 +2,8 @@ import type {
   Asset, AssetKind, Capabilities, Channel, ChannelInput, ChannelSummary, Character, CharacterRole,
   CharacterVersion, ContentInput, ContentProject, Idea, Job, LogEntry, Overview, ProductionStatusInfo,
   SystemInfo, Template, ValidationReport, VersionFields, Video,
+  AnalyticsFilters, AnalyticsSummary, ChannelCompare, Distribution, Insights, RetentionData, SyncQueued, SyncStatusInfo,
+  Timeseries, VideoList,
   Playlist, PublishInput, PublishJob, PublishStatus, Slots, YoutubeConfig, YoutubeStatus,
 } from "./types";
 
@@ -159,5 +161,21 @@ export const api = {
   createPublish: (cid: number, body: PublishInput) => request<PublishJob>("POST", `${ch(cid)}/publishing/jobs`, body),
   cancelPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/cancel`),
   retryPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/retry`),
+  // ---- Phase 4: analytics
+  anSummary: (f: AnalyticsFilters) => request<AnalyticsSummary>("GET", `/api/analytics/summary${qs({ ...f })}`),
+  anSeries: (f: AnalyticsFilters, granularity: string, split: boolean) =>
+    request<Timeseries>("GET", `/api/analytics/timeseries${qs({ ...f, granularity, split: split ? "true" : "" })}`),
+  anDistribution: (f: AnalyticsFilters, by: "channel" | "topic") =>
+    request<Distribution>("GET", `/api/analytics/distribution${qs({ ...f, by })}`),
+  anCompare: (f: AnalyticsFilters) => request<ChannelCompare>("GET", `/api/analytics/channels/compare${qs({ start: f.start, end: f.end })}`),
+  anVideos: (f: AnalyticsFilters, sort: string) => request<VideoList>("GET", `/api/analytics/videos${qs({ ...f, sort, limit: 200 })}`),
+  anInsights: (f: AnalyticsFilters) => request<Insights>("GET", `/api/analytics/insights${qs({ ...f })}`),
+  anVideoRetention: (videoId: number) => request<RetentionData>("GET", `/api/analytics/videos/${videoId}/retention`),
+  anChannelRetention: (channelId?: number | "") => request<RetentionData>("GET", `/api/analytics/retention${qs({ channel_id: channelId })}`),
+  anSyncStatus: (channelId?: number | "") => request<SyncStatusInfo>("GET", `/api/analytics/sync${qs({ channel_id: channelId })}`),
+  anSyncAll: () => request<SyncQueued>("POST", "/api/analytics/sync"),
+  anSyncChannel: (cid: number, backfillDays?: number) =>
+    request<{ queued: boolean; message: string }>("POST", `${ch(cid)}/analytics/sync${qs({ backfill_days: backfillDays })}`),
+
   slots: (cid: number, count = 5) => request<Slots>("GET", `${ch(cid)}/publishing/slots${qs({ count })}`),
 };

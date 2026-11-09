@@ -5,7 +5,7 @@ import { ErrorBox, Loading, Stat } from "../components/ui";
 import { fmtDate, useApi } from "../lib/hooks";
 
 function metric(m: MetricValue, unit = "") {
-  if (m.value === null) return { value: "—", sub: "Chưa đồng bộ từ YouTube (Phase 4)" };
+  if (m.value === null) return { value: "—", sub: "Chưa đồng bộ từ YouTube — vào Analytics để đồng bộ" };
   return {
     value: Math.round(m.value).toLocaleString("vi-VN") + unit,
     sub: `Nguồn: ${m.source === "youtube_api" ? "YouTube API" : "Ước tính"}${m.synced_at ? " · " + fmtDate(m.synced_at) : ""}`,
@@ -25,14 +25,15 @@ export default function Overview() {
   if (!data) return null;
   const s = data.channels_by_status;
   const views = metric(data.total_views);
-  const subs = metric(data.total_subscribers_gained);
+  const subs = metric(data.total_subscribers);
+  const gained = metric(data.total_subscribers_gained);
   const wt = metric(data.total_watch_time_minutes, " phút");
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="h1">Overview</h1>
-        <button className="btn-ghost" onClick={reload}>↻ Làm mới</button>
+        <div className="flex gap-2"><Link className="btn-ghost" to="/analytics">▲ Analytics chi tiết</Link><button className="btn-ghost" onClick={reload}>↻ Làm mới</button></div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -45,7 +46,8 @@ export default function Overview() {
         <Stat label="Đang render" value={data.render_jobs_running} sub={`${data.render_jobs_queued} trong hàng đợi`} />
         <Stat label="Chờ đăng" value={data.videos_waiting_publish} />
         <Stat label="Tổng lượt xem" value={views.value} sub={views.sub} />
-        <Stat label="Subscriber tăng" value={subs.value} sub={subs.sub} />
+        <Stat label="Tổng subscriber" value={subs.value} sub={subs.sub} />
+        <Stat label="Subscriber tăng (kỳ đã đồng bộ)" value={gained.value} sub={gained.sub} />
         <Stat label="Watch time" value={wt.value} sub={wt.sub} />
       </div>
 
@@ -54,7 +56,7 @@ export default function Overview() {
           <div className="mb-2 font-semibold">Lượt xem 30 ngày gần nhất</div>
           {data.daily_views.length ? <Sparkline points={data.daily_views} /> : (
             <div className="flex h-36 items-center justify-center rounded-lg bg-brand-50 text-sm text-ink-500">
-              Chưa có dữ liệu thực từ YouTube Analytics. Biểu đồ sẽ hiển thị sau khi kết nối & đồng bộ (Phase 3–4).
+              Chưa có dữ liệu thực từ YouTube Analytics. Kết nối kênh rồi đồng bộ tại trang Analytics để thấy biểu đồ.
             </div>
           )}
         </div>

@@ -125,6 +125,7 @@ export interface Overview {
   render_jobs_queued: number;
   videos_waiting_publish: number;
   total_views: MetricValue;
+  total_subscribers: MetricValue;
   total_subscribers_gained: MetricValue;
   total_watch_time_minutes: MetricValue;
   daily_views: { day: string; views: number }[];
@@ -368,3 +369,65 @@ export interface PublishInput {
 }
 export interface Slots { timezone: string; slots: string[] }
 export interface PublishStatus { counts: Record<string, number>; workers: WorkerInfo[] }
+
+// ---------------------------------------------------------------- Phase 4: analytics
+export type DataState = "synced" | "not_synced";
+export interface Kpi { value: number | null; previous: number | null; change_pct: number | null; source: "youtube_api" | "not_synced" }
+export type KpiKey = "views" | "watch_time_minutes" | "average_view_duration_sec" | "average_view_percentage"
+  | "subscribers_gained" | "subscribers_lost" | "subscribers_net" | "likes" | "comments";
+export interface AnalyticsFilters { channel_id?: number | ""; start?: string; end?: string; topic?: string; video_status?: string }
+
+export interface VideoPerf {
+  video_id: number; channel_id: number; channel_name: string; title: string; youtube_video_id: string;
+  published_at: string | null; privacy_status: string | null; duration_minutes: number | null;
+  content_type: ContentType | null; theme: string; has_data: boolean; data_state: DataState; synced_at: string | null;
+  views: number | null; watch_time_minutes: number | null; average_view_duration_sec: number | null;
+  average_view_percentage: number | null; subscribers_gained: number | null; likes: number | null; comments: number | null;
+  engagement_rate: number | null; views_per_day: number | null; retention_avg: number | null; has_retention: boolean;
+  score: number | null; label: "strong" | "average" | "weak" | "insufficient_data" | "too_new" | "not_synced";
+  weak_reasons: string[]; components: Record<string, number>; exposure_days: number;
+}
+export interface AnalyticsSummary {
+  range: { start: string; end: string; days: number };
+  filters: { channel_id: number | null; topic: string | null; video_status: string | null };
+  basis: "channel" | "videos"; data_state: DataState; preliminary_since: string; last_synced_at: string | null;
+  kpis: Record<KpiKey, Kpi>;
+  subscribers_total: { value: number | null; source: string; synced_at: string | null; channels_counted: number; channels_total: number; channels_hidden: number };
+  production: { videos_published: number; videos_processing: number; videos_failed: number };
+  top_video: VideoPerf | null;
+  best_channel: { channel_id: number; channel_name: string; basis: string; watch_time_minutes: number; views: number } | null;
+  sync: { connected: number; synced: number; not_synced: number; errors: { channel_id: number; channel_name: string; kind: string | null; error: string | null }[] };
+}
+export interface SeriesPoint { period: string; views: number; watch_time_minutes: number; subscribers_net: number; likes: number; comments: number; preliminary: boolean }
+export interface Timeseries {
+  basis: string; granularity: string; data_state: DataState; preliminary_since: string; points: SeriesPoint[];
+  by_channel: { channel_id: number; channel_name: string; points: SeriesPoint[] }[];
+}
+export interface ChannelCompareRow {
+  channel_id: number; channel_name: string; enabled: boolean; data_state: string; source: string;
+  views: number | null; watch_time_minutes: number | null; subscribers_net: number | null; engagement_rate: number | null;
+  average_view_percentage: number | null; videos_published: number; views_growth_pct: number | null;
+  watch_time_growth_pct: number | null; subscribers_total: number | null; subscribers_growth_pct: number | null;
+}
+export interface ChannelCompare { best: AnalyticsSummary["best_channel"]; growth_note: string; items: ChannelCompareRow[] }
+export interface Distribution { by: string; total_views: number | null; data_state: DataState; items: { key: string; label: string; views: number; share: number | null }[] }
+export interface VideoList { items: VideoPerf[]; total: number; scoring: { weights: Record<string, number>; note: string } }
+export interface RetentionSummary { average: number | null; at_10: number | null; at_25: number | null; at_50: number | null; at_75: number | null; steepest_drop: { from: number; to: number; delta: number } | null }
+export interface RetentionData { data_state: DataState; points: [number, number][]; summary: RetentionSummary; n_videos?: number; title?: string; note?: string; synced_at?: string | null }
+export interface GroupStat { group: string; key: string | number; label: string; minutes?: number; n_videos: number; n_scored: number; total_views: number; avg_views_per_day: number | null; avg_view_pct: number | null; subs_per_1k_views: number | null; avg_score: number | null }
+export interface SlotStat { hour?: number; weekday?: number; n: number; avg_views_7d: number | null; avg_watch_minutes_7d: number | null; reliable: boolean }
+export interface Recommendation { kind: string; confidence: "low" | "medium" | "high"; text: string; evidence: Record<string, unknown>; suggested_content_type?: ContentType | null }
+export interface Insights {
+  videos_total: number; videos_scored: number; topics: GroupStat[]; themes: GroupStat[]; durations: GroupStat[];
+  posting_times: { measured_videos: number; by_hour: SlotStat[]; by_weekday: SlotStat[]; note: string };
+  underperformers: { video_id: number; title: string; channel_name: string; score: number | null; reasons: string[] }[];
+  retention: { n_videos: number; summary: RetentionSummary }; recommendations: Recommendation[];
+}
+export interface SyncChannel {
+  channel_id: number; channel_name: string; enabled: boolean; connected: boolean;
+  state: "synced" | "stale" | "not_synced" | "error" | "disconnected"; last_success_at: string | null;
+  last_attempt_at: string | null; synced_through: string | null; videos_synced: number; videos_failed: number;
+  error_kind: string | null; error: string | null; retry_after: string | null;
+}
+export interface SyncStatusInfo { channels: SyncChannel[]; worker_alive: boolean; interval_minutes: number }
+export interface SyncQueued { queued: number; results: { channel_id: number; queued: boolean; message: string }[] }

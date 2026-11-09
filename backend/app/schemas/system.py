@@ -34,6 +34,7 @@ class Overview(BaseModel):
     render_jobs_queued: int
     videos_waiting_publish: int
     total_views: MetricValue
+    total_subscribers: MetricValue
     total_subscribers_gained: MetricValue
     total_watch_time_minutes: MetricValue
     daily_views: list[dict]  # [{day, views}] from YouTube API only; empty if not synced

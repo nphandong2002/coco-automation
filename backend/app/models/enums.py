@@ -68,6 +68,7 @@ class WorkerState(str, enum.Enum):
     IDLE = "idle"
     RENDERING = "rendering"
     UPLOADING = "uploading"
+    SYNCING = "syncing"
     WAITING_LOCK = "waiting_lock"
     STOPPED = "stopped"
 
@@ -110,6 +111,14 @@ class DataSource(str, enum.Enum):
 
     YOUTUBE_API = "youtube_api"
     ESTIMATED = "estimated"
+
+
+class SyncStatus(str, enum.Enum):
+    """Outcome of the last analytics sync of a channel."""
+
+    OK = "ok"                  # everything synced
+    PARTIAL = "partial"        # channel data synced, some videos failed
+    ERROR = "error"            # nothing could be synced (see error_kind)
 
 
 class LogLevel(str, enum.Enum):
