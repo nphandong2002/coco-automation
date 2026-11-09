@@ -67,6 +67,7 @@ class VideoJobType(str, enum.Enum):
 class WorkerState(str, enum.Enum):
     IDLE = "idle"
     RENDERING = "rendering"
+    UPLOADING = "uploading"
     WAITING_LOCK = "waiting_lock"
     STOPPED = "stopped"
 

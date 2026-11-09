@@ -322,16 +322,18 @@ def delete_video(db: Session, v: Video) -> None:
 
 
 # ----------------------------------------------------------------- worker / capabilities
+def worker_out(w: WorkerStatus) -> WorkerOut:
+    limit = timedelta(seconds=get_settings().worker_heartbeat_seconds * 3 + 10)
+    online = w.state != "stopped" and (_now() - w.heartbeat_at) < limit
+    return WorkerOut(worker_id=w.worker_id, kind=w.kind, hostname=w.hostname, pid=w.pid,
+                     state=w.state.value if hasattr(w.state, "value") else str(w.state), online=online,
+                     current_job_id=w.current_job_id, started_at=w.started_at,
+                     heartbeat_at=w.heartbeat_at, info=w.info)
+
+
 def production_status(db: Session) -> ProductionStatusOut:
-    settings = get_settings()
-    limit = timedelta(seconds=settings.worker_heartbeat_seconds * 3 + 10)
-    workers = []
-    for w in db.scalars(select(WorkerStatus).order_by(WorkerStatus.heartbeat_at.desc())).all():
-        online = w.state != "stopped" and (_now() - w.heartbeat_at) < limit
-        workers.append(WorkerOut(worker_id=w.worker_id, kind=w.kind, hostname=w.hostname, pid=w.pid,
-                                 state=w.state.value if hasattr(w.state, "value") else str(w.state), online=online,
-                                 current_job_id=w.current_job_id, started_at=w.started_at,
-                                 heartbeat_at=w.heartbeat_at, info=w.info))
+    workers = [worker_out(w) for w in db.scalars(
+        select(WorkerStatus).where(WorkerStatus.kind == "render").order_by(WorkerStatus.heartbeat_at.desc())).all()]
     since = _now() - timedelta(hours=24)
 
     def count(*conds) -> int:  # noqa: ANN002

@@ -43,12 +43,17 @@ Mặc định nhân vật chỉ thuộc kênh sở hữu. Tab **Cấp quyền** 
 - **Overview**: tổng kênh theo trạng thái, nhân vật, nội dung, video, hàng đợi render/đăng, lượt xem/subscriber/watch time và hoạt động gần đây. Số liệu YouTube hiển thị "—  Chưa đồng bộ" cho tới khi có dữ liệu thật (Phase 4).
 - **System Settings**: CPU, RAM, ổ đĩa, kết nối DB, phiên bản migration, FFmpeg, SECRET_KEY, bảo vệ mật khẩu, nhật ký hệ thống.
 
-## 4. Các chức năng phase sau
+## 4. Kết nối YouTube, đăng video, lên lịch
+
+Chi tiết (tạo OAuth client, quota, xử lý sự cố): [YOUTUBE_SETUP.md](YOUTUBE_SETUP.md).
+
+1. **Kết nối**: Channels → kênh → tab *YouTube* → *Kết nối YouTube*. Mỗi kênh dùng tài khoản/kênh YouTube riêng.
+2. **Lịch đăng của kênh**: Sửa kênh → *Lịch đăng* (múi giờ + các khung giờ trong tuần).
+3. **Đăng**: video đã render → *↑ Đăng YouTube*. Mặc định **Private**; có thể hẹn giờ công khai bằng slot trống kế tiếp hoặc giờ cụ thể.
+4. **Theo dõi**: *Publishing* (hàng đợi, tiến độ, lịch sử, thử lại/hủy) và *Scheduler* (khung giờ, slot trống, video đã hẹn).
+
+## 5. Các chức năng phase sau
 
 | Hướng dẫn | Phase |
 |---|---|
-| Tạo & render video (Content Library, Assets, Video Production) | 2 |
-| Kết nối YouTube, đăng video, lên lịch đăng | 3 |
 | Xem Analytics, so sánh hiệu suất | 4 |
-
-Các mục này sẽ được bổ sung vào tài liệu khi phase tương ứng hoàn thành.

@@ -343,3 +343,28 @@ export interface Capabilities {
   resolutions: string[];
   x264_presets: string[];
 }
+
+// ---------------------------------------------------------------- Phase 3: YouTube / publishing
+export interface YoutubeStatus {
+  configured: boolean; connected: boolean; status: "valid" | "expired" | "revoked" | "disconnected";
+  youtube_channel_id: string | null; youtube_channel_title: string | null; google_account_email: string | null;
+  scopes: string[]; token_expiry: string | null; last_refresh_at: string | null; last_error: string | null;
+}
+export interface YoutubeConfig { configured: boolean; redirect_uri: string; scopes: string[] }
+export interface Playlist { id: string; title: string; privacy: string | null }
+export type PrivacyStatus = "private" | "unlisted" | "public";
+export interface PublishHistoryEntry { at: string; event: string; detail: string }
+export interface PublishJob {
+  id: number; channel_id: number; channel_name: string; video_id: number; video_title: string | null;
+  thumbnail_url: string | null; status: JobStatus; privacy_status: PrivacyStatus; publish_at: string | null;
+  title: string; description: string; tags: string[]; playlist_id: string | null; category_id: string;
+  bytes_uploaded: number; size_bytes: number | null; progress: number | null; attempts: number; max_attempts: number;
+  next_attempt_at: string | null; youtube_video_id: string | null; youtube_url: string | null;
+  uploaded_at: string | null; last_error: string | null; history: PublishHistoryEntry[]; created_at: string;
+}
+export interface PublishInput {
+  video_id: number; title?: string; description?: string; tags?: string[]; privacy: PrivacyStatus;
+  publish_at?: string | null; use_next_slot?: boolean; playlist_id?: string | null; category_id?: string;
+}
+export interface Slots { timezone: string; slots: string[] }
+export interface PublishStatus { counts: Record<string, number>; workers: WorkerInfo[] }

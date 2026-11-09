@@ -12,6 +12,8 @@ import Assets from "./pages/Assets";
 import ContentLibrary from "./pages/ContentLibrary";
 import ContentDetail from "./pages/ContentDetail";
 import Production from "./pages/Production";
+import Publishing from "./pages/Publishing";
+import Scheduler from "./pages/Scheduler";
 import "./index.css";
 
 function NotFound() {
@@ -31,6 +33,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="content" element={<ContentLibrary />} />
           <Route path="channels/:channelId/content/:projectId" element={<ContentDetail />} />
           <Route path="production" element={<Production />} />
+          <Route path="publishing" element={<Publishing />} />
+          <Route path="scheduler" element={<Scheduler />} />
           <Route path="assets" element={<Assets />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />

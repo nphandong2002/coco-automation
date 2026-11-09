@@ -7,6 +7,7 @@ import { CharacterCard, CreateCharacterForm } from "../components/CharacterForms
 import { ColorChips, Empty, ErrorBox, Field, ImageUpload, Loading, Modal, Stat, StatusBadge, Tabs } from "../components/ui";
 import { fmtDate, useAction, useApi } from "../lib/hooks";
 import { ProjectTable, VideoList } from "../components/production";
+import { YoutubePanel } from "../components/publishing";
 import { NewProjectModal } from "./ContentLibrary";
 
 type Tab = "overview" | "brand" | "characters" | "content" | "videos" | "youtube" | "activity";
@@ -83,15 +84,7 @@ export default function ChannelDetail() {
       {tab === "characters" && <CharactersTab channelId={id} />}
       {tab === "content" && <ContentTab channelId={id} />}
       {tab === "videos" && <VideosTab channelId={id} />}
-      {tab === "youtube" && (
-        <div className="card space-y-3 p-5">
-          <div className="flex items-center gap-2"><span className="font-semibold">Trạng thái kết nối:</span>
-            {ch.youtube_connected ? <span className="text-emerald-700">Đã kết nối {ch.youtube_channel_title}</span> : <span className="text-ink-500">Chưa kết nối</span>}</div>
-          <p className="muted">Mỗi kênh dùng OAuth 2.0 riêng, token được mã hóa (Fernet) trong bảng <code>youtube_credentials</code>.
-            Chức năng kết nối / ngắt kết nối, upload và lên lịch đăng được triển khai ở <b>Phase 3</b>.
-            Khi chưa kết nối, kênh hiển thị trạng thái <i>Disconnected</i> — đây là trạng thái thật, không phải lỗi.</p>
-        </div>
-      )}
+      {tab === "youtube" && <YoutubePanel channelId={id} onChanged={reload} />}
       {tab === "activity" && <ActivityTab channelId={id} />}
 
       {modal === "clone" && <CloneModal ch={ch} onClose={() => setModal(null)} onDone={(c) => nav(`/channels/${c.id}`)} />}

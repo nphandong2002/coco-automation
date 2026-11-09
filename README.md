@@ -2,8 +2,8 @@
 
 Nền tảng quản lý nhiều kênh YouTube phong cách Cozy / Study With Me / ASMR / Pomodoro: mỗi kênh có thương hiệu, nhân vật, nội dung, lịch đăng và thống kê **độc lập**. Chạy trên Ubuntu (PC 8 GB RAM), dashboard truy cập qua trình duyệt trong mạng LAN.
 
-> **Trạng thái: Phase 1 hoàn thành** — Project, Database (đủ 16 bảng), Channel Manager, Character Manager, Dashboard cơ bản.
-> Các module Phase 2–5 hiển thị mờ trong menu (không có nút "giả").
+> **Trạng thái: Phase 3** — Phase 1–2 (kênh, nhân vật, nội dung, render FFmpeg) + YouTube OAuth theo kênh, upload, Publishing Scheduler.
+> Chưa có: Analytics (Phase 4), Monitoring/Recovery nâng cao (Phase 5). Phase 2–3: code và test đã viết, bộ test cần PostgreSQL thật (`TEST_DATABASE_URL`).
 
 ## Cài đặt nhanh (Ubuntu 22.04 / 24.04)
 
@@ -21,7 +21,7 @@ Mở `http://<ip-máy>:8080` — đăng nhập `admin` / mật khẩu in ra khi 
 | `scripts/backup.sh [--db-only]` | Sao lưu DB + file + `.env` vào `backups/` |
 | `scripts/restore.sh <file> [--with-env]` | Khôi phục |
 
-Chi tiết: [docs/INSTALL_UBUNTU.md](docs/INSTALL_UBUNTU.md) · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
+Chi tiết: [docs/INSTALL_UBUNTU.md](docs/INSTALL_UBUNTU.md) · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · [docs/YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 
 ## Cấu trúc thư mục
 
@@ -66,7 +66,7 @@ API docs (Swagger): `http://<host>:8080/api/docs`
 | Phase | Nội dung | Trạng thái |
 |---|---|---|
 | 1 | Project, Database, Channel Manager, Character Manager, Dashboard cơ bản | ✅ |
-| 2 | Content Manager, Asset Manager (licence bắt buộc), Video Generator, FFmpeg render queue | ⏳ |
-| 3 | YouTube OAuth theo từng kênh, upload (mặc định Private), Publishing Scheduler | ⏳ |
+| 2 | Content Manager, Asset Manager (licence bắt buộc), Video Generator, FFmpeg render queue | 🟡 code xong, chờ chạy test DB |
+| 3 | YouTube OAuth theo từng kênh, upload (mặc định Private), Publishing Scheduler | 🟡 code xong, chờ chạy test DB |
 | 4 | YouTube Analytics sync, dashboard thống kê, so sánh hiệu suất | ⏳ |
 | 5 | Monitoring, recovery, tối ưu tài nguyên | ⏳ |

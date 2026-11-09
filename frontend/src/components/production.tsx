@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type { Asset, AssetKind, Capabilities, ContentProject, ContentType, Job, JobStatus, LicenseType, ProductionStatus, Video } from "../api/types";
 import { fmtDate, useAction, useApi } from "../lib/hooks";
 import { Badge, Empty, ErrorBox, Loading, Modal } from "./ui";
+import { PublishModal } from "./publishing";
 
 export const CONTENT_TYPES: Record<ContentType, string> = {
   study_with_me: "Study With Me", pomodoro: "Pomodoro", cozy_ambience: "Cozy Ambience",
@@ -180,6 +181,7 @@ export function ProjectTable({ items, showChannel = true }: { items: ContentProj
 
 export function VideoList({ items, onChanged }: { items: Video[]; onChanged?: () => void }) {
   const [open, setOpen] = useState<Video | null>(null);
+  const [publish, setPublish] = useState<Video | null>(null);
   const { busy, run } = useAction();
   if (!items.length) return <Empty title="Chưa có video nào">Video xuất hiện tại đây sau khi render hoàn tất và qua kiểm tra chất lượng.</Empty>;
   return (
@@ -197,13 +199,15 @@ export function VideoList({ items, onChanged }: { items: Video[]; onChanged?: ()
               <div className="text-xs text-ink-500">{v.channel_name} · {v.width}x{v.height} · {v.fps} fps · {fmtBytes(v.size_bytes)}</div>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {v.qc_passed ? <Badge tone="green">QC đạt</Badge> : <Badge>QC lỗi</Badge>}
-                {v.youtube_video_id ? <Badge tone="blue">Đã đăng</Badge> : <Badge>Chưa đăng (Phase 3)</Badge>}
+                {v.youtube_video_id ? <a href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`} target="_blank" rel="noreferrer"><Badge tone="blue">Đã đăng · {v.privacy_status}</Badge></a>
+                  : v.qc_passed ? <button className="btn-ghost px-2 py-0.5 text-xs" onClick={() => setPublish(v)}>↑ Đăng YouTube</button> : <Badge>Chưa đăng</Badge>}
                 <a className="ml-auto text-xs text-brand-700 underline" href={v.url} download>Tải về</a>
               </div>
             </div>
           </div>
         ))}
       </div>
+      {publish && <PublishModal video={publish} onClose={() => setPublish(null)} onDone={() => onChanged?.()} />}
       {open && (
         <Modal title={open.title} wide onClose={() => setOpen(null)}>
           <video src={open.url} controls className="w-full rounded-lg bg-black" poster={open.thumbnail_url ?? undefined} />

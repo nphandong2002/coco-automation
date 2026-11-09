@@ -2,6 +2,7 @@ import type {
   Asset, AssetKind, Capabilities, Channel, ChannelInput, ChannelSummary, Character, CharacterRole,
   CharacterVersion, ContentInput, ContentProject, Idea, Job, LogEntry, Overview, ProductionStatusInfo,
   SystemInfo, Template, ValidationReport, VersionFields, Video,
+  Playlist, PublishInput, PublishJob, PublishStatus, Slots, YoutubeConfig, YoutubeStatus,
 } from "./types";
 
 export class ApiError extends Error {
@@ -145,4 +146,18 @@ export const api = {
   retryJob: (id: number) => request<Job>("POST", `/api/production/jobs/${id}/retry`),
   videos: (p: { channel_id?: number | ""; project_id?: number } = {}) => request<Video[]>("GET", `/api/production/videos${qs(p)}`),
   deleteVideo: (id: number) => request<void>("DELETE", `/api/production/videos/${id}`),
+
+  // ---- Phase 3: YouTube + publishing
+  youtubeConfig: () => request<YoutubeConfig>("GET", "/api/youtube/config"),
+  youtubeStatus: (cid: number) => request<YoutubeStatus>("GET", `${ch(cid)}/youtube`),
+  youtubeConnect: (cid: number) => request<{ auth_url: string }>("POST", `${ch(cid)}/youtube/connect`),
+  youtubeDisconnect: (cid: number) => request<YoutubeStatus>("POST", `${ch(cid)}/youtube/disconnect`),
+  playlists: (cid: number) => request<Playlist[]>("GET", `${ch(cid)}/youtube/playlists`),
+  publishStatus: () => request<PublishStatus>("GET", "/api/publishing/status"),
+  publishJobs: (p: { channel_id?: number | ""; status?: string; limit?: number } = {}) =>
+    request<PublishJob[]>("GET", `/api/publishing/jobs${qs(p)}`),
+  createPublish: (cid: number, body: PublishInput) => request<PublishJob>("POST", `${ch(cid)}/publishing/jobs`, body),
+  cancelPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/cancel`),
+  retryPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/retry`),
+  slots: (cid: number, count = 5) => request<Slots>("GET", `${ch(cid)}/publishing/slots${qs({ count })}`),
 };

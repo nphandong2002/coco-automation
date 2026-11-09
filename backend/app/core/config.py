@@ -64,6 +64,20 @@ class Settings(BaseSettings):
     worker_stale_seconds: int = 180
 
 
+    # ---------------------------------------------------------------- Phase 3: YouTube
+    # OAuth client of YOUR Google Cloud project (Desktop/Web). Each channel still authorises
+    # separately and gets its own encrypted refresh token.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Must be registered in Google Cloud as an authorised redirect URI.
+    oauth_redirect_uri: str = "http://localhost:8080/api/youtube/oauth/callback"
+    youtube_upload_chunk_mb: int = 8       # resumable upload chunk (multiple of 256 KiB)
+    youtube_http_timeout_sec: float = 60.0
+    publish_retry_base_sec: int = 120      # exponential backoff base
+    publish_retry_max_sec: int = 6 * 3600
+    publish_poll_seconds: float = 5.0
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

@@ -250,6 +250,9 @@ class PublishingJob(TimestampMixin, Base):
             name="fk_publishing_jobs_video",
             ondelete="CASCADE",
         ),
+        # never two active uploads for the same video (no duplicate publishing)
+        Index("uq_publishing_jobs_active_video", "video_id", unique=True,
+              postgresql_where=text("status IN ('queued', 'running')")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
