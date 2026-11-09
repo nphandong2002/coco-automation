@@ -1,0 +1,12 @@
+# Installed to /etc/logrotate.d/coco-automation by scripts/install.sh --systemd
+# logs/app.log is rotated by the application itself (10 MB x 5); server.out is the raw stdout/stderr.
+__APP_DIR__/logs/server.out __APP_DIR__/logs/backup.log {
+    weekly
+    rotate 8
+    size 20M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

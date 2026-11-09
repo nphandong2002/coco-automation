@@ -4,20 +4,32 @@ Description=Coco Automation - multi-channel YouTube platform
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
+# Give up only after 5 crashes in 10 minutes (then `systemctl reset-failed coco-automation`)
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=__USER__
 WorkingDirectory=__APP_DIR__/backend
 ExecStart=__APP_DIR__/scripts/run.sh
-Restart=on-failure
+# Restart on crash AND on a clean-but-unexpected exit; scripts/stop.sh uses systemctl stop (no restart)
+Restart=always
 RestartSec=5
 TimeoutStopSec=90
 KillMode=mixed
 KillSignal=SIGTERM
-# One unit runs API + render + publish + analytics workers (scripts/run.sh). 8 GB machine guard:
+# One unit runs API + render + publish + analytics + monitor workers (scripts/run.sh).
+# Resource guard for an 8 GB machine: the render FFmpeg is the only heavy process.
+MemoryHigh=5G
 MemoryMax=6G
 Nice=5
+CPUWeight=80
+IOWeight=80
+# If the system is short of RAM the kernel should sacrifice this service before sshd/desktop
+OOMScoreAdjust=300
+LimitNOFILE=65536
+TasksMax=512
 StandardOutput=append:__APP_DIR__/logs/server.out
 StandardError=append:__APP_DIR__/logs/server.out
 

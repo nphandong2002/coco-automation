@@ -22,6 +22,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import psutil
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
@@ -130,6 +131,14 @@ class RenderWorker:
         last_beat = 0.0
         try:
             while not self.stop_event.is_set():
+                if not self._ram_ok():
+                    if once:
+                        break
+                    if time.monotonic() - last_beat >= self.settings.worker_heartbeat_seconds:
+                        self.heartbeat()
+                        last_beat = time.monotonic()
+                    self.stop_event.wait(self.settings.worker_poll_seconds)
+                    continue
                 job_id = self.claim()
                 if job_id is not None:
                     self.run_job(job_id)
@@ -146,6 +155,18 @@ class RenderWorker:
         finally:
             self._shutdown()
         return 0
+
+    def _ram_ok(self) -> bool:
+        """Do not START a heavy render when the machine is nearly out of memory (8 GB host)."""
+        avail = psutil.virtual_memory().available // (1024 * 1024)
+        if avail >= self.settings.min_free_ram_mb:
+            self._ram_warned = False
+            return True
+        if not getattr(self, "_ram_warned", False):
+            log.warning("Only %d MB RAM available (< %d): holding queued renders until memory frees up",
+                        avail, self.settings.min_free_ram_mb)
+            self._ram_warned = True
+        return False
 
     def _shutdown(self) -> None:
         self.state = WorkerState.STOPPED

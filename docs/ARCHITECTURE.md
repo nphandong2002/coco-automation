@@ -57,7 +57,7 @@ Vì thế kênh mới tạo hiển thị *Disconnected* cho tới khi kết nố
 - `channel_characters`: quyền sử dụng + vai trò (chính/phụ) **theo từng kênh**. Kênh sở hữu luôn có 1 dòng `is_owner=true`. Kênh khác chỉ dùng được khi chủ sở hữu cấp quyền; kênh được cấp quyền chỉ đọc. Index duy nhất có điều kiện đảm bảo **tối đa 1 nhân vật chính / kênh**.
 - Phase 2: `content_projects` ghim `character_version_id` → video render lại sau này vẫn đúng ngoại hình.
 
-## 6. Database (19 bảng)
+## 6. Database (20 bảng)
 
 | Nhóm | Bảng |
 |---|---|
@@ -66,6 +66,7 @@ Vì thế kênh mới tạo hiển thị *Disconnected* cho tới khi kết nố
 | Nội dung & sản xuất | `content_ideas` (UNIQUE channel+fingerprint chống trùng lặp), `content_projects`, `video_templates`, `assets` (bắt buộc licence), `video_jobs`, `videos` |
 | Đăng | `publishing_jobs` (mặc định `private`, retry, resumable upload) |
 | Thống kê | `analytics_daily`, `analytics_video` (cột `data_source`: `youtube_api` / `estimated`), `analytics_channel_snapshots` (subscriber/tổng views từ Data API), `analytics_video_retention` (đường giữ chân), `analytics_sync_state` (trạng thái đồng bộ theo kênh) |
+| Giám sát | `system_metrics` (mẫu CPU/RAM/đĩa/hàng đợi mỗi phút, giữ 7 ngày) |
 | Vận hành | `scheduler_jobs` (dedupe_key, timeout, attempts), `system_logs` |
 
 DDL đầy đủ: [schema.sql](schema.sql). Migration: `backend/alembic/versions/`.
@@ -83,7 +84,7 @@ DDL đầy đủ: [schema.sql](schema.sql). Migration: `backend/alembic/versions
 - **Phase 2**: `services/content_service.py`, `asset_service.py`, `worker/` (process riêng, systemd unit thứ 2), `render/` (timeline → filtergraph FFmpeg, `-threads` giới hạn, `nice`, render 1 job nặng/lần, ffprobe QC sau render).
 - **Phase 3**: `integrations/youtube/` (google-auth-oauthlib, upload resumable, thumbnails, playlist), scheduler tạo `publishing_jobs` từ `channels.publish_schedule`.
 - **Phase 4 (đã làm)**: xem mục 9.
-- **Phase 5**: trang Monitoring (CPU/RAM/disk/FFmpeg/queue/API errors), recovery job treo, dọn file tạm.
+- **Phase 5 (đã làm)**: xem mục 10 và [OPERATIONS.md](OPERATIONS.md).
 
 ## 9. Analytics (Phase 4)
 
@@ -111,3 +112,13 @@ API /api/analytics/* --> services/analytics_service.py (đọc, gộp, so sánh)
 - **Đề xuất:** luật có điều kiện kích hoạt rõ ràng (chênh điểm ≥10 giữa chủ đề/thời lượng, ≥3 mẫu cho khung giờ, giữ chân 10% đầu <50%, kênh >14 ngày không đăng…), luôn kèm `evidence` và `confidence` theo cỡ mẫu.
 - **Giới hạn đã biết:** khung giờ đăng dùng `videos.published_at` (giờ hẹn công khai hoặc lúc upload Public); video đổi sang Public thủ công trong Studio không có giờ chính xác nên bị loại khỏi phân tích khung giờ.
   Tăng trưởng subscriber theo % cần ≥2 snapshot trong khoảng lọc (snapshot ghi mỗi lần đồng bộ).
+
+## 10. Monitoring & recovery (Phase 5)
+
+- `services/monitor_service.py`: `snapshot()` đo host (psutil), tiến trình FFmpeg, worker (heartbeat), hàng đợi, YouTube, DB → `alerts[]` (mức `warning|critical`) → `status`. Không có số giả.
+- `worker/monitor.py` (khóa 72700004): mỗi `MONITOR_INTERVAL_SECONDS` → watchdog + ghi `system_metrics`; mỗi giờ → `recovery.maintenance()`.
+- `services/recovery.py`: `find_stalled()` chỉ dựa trên bằng chứng trong DB (heartbeat render, `updated_at` của upload đang chạy, `locked_at` của job analytics, vượt timeout);
+  `watchdog()` dừng đúng worker sở hữu tác vụ (SIGTERM → SIGKILL, kèm FFmpeg con) rồi để *supervisor + recovery lúc khởi động* sẵn có khôi phục tác vụ — không viết thêm logic sửa trạng thái song song.
+  An toàn: chỉ dừng tiến trình cùng máy có `app.worker` trong dòng lệnh.
+- Render worker kiểm tra RAM trống trước khi nhận job (`MIN_FREE_RAM_MB`). Publish/analytics worker ghi heartbeat trong lúc upload/đồng bộ dài để không bị coi là chết.
+- API: `GET /api/monitoring`, `/api/monitoring/history`, `POST /api/monitoring/maintenance|watchdog`.

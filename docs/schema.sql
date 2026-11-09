@@ -709,3 +709,53 @@ ALTER TABLE ONLY public.analytics_video_retention
 
 
 
+
+-- ===== Phase 5 (migration 0005): system_metrics =====
+
+
+
+
+
+
+CREATE TABLE public.system_metrics (
+    id integer NOT NULL,
+    ts timestamp with time zone NOT NULL,
+    cpu_percent double precision NOT NULL,
+    ram_percent double precision NOT NULL,
+    ram_available_mb integer NOT NULL,
+    disk_free_gb double precision NOT NULL,
+    ffmpeg_processes integer DEFAULT 0 NOT NULL,
+    ffmpeg_rss_mb integer DEFAULT 0 NOT NULL,
+    render_queue integer DEFAULT 0 NOT NULL,
+    upload_queue integer DEFAULT 0 NOT NULL
+);
+
+
+
+CREATE SEQUENCE public.system_metrics_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.system_metrics_id_seq OWNED BY public.system_metrics.id;
+
+
+
+ALTER TABLE ONLY public.system_metrics ALTER COLUMN id SET DEFAULT nextval('public.system_metrics_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.system_metrics
+    ADD CONSTRAINT pk_system_metrics PRIMARY KEY (id);
+
+
+
+CREATE INDEX ix_system_metrics_ts ON public.system_metrics USING btree (ts);
+
+
+

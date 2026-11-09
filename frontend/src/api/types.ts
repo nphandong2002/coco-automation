@@ -431,3 +431,27 @@ export interface SyncChannel {
 }
 export interface SyncStatusInfo { channels: SyncChannel[]; worker_alive: boolean; interval_minutes: number }
 export interface SyncQueued { queued: number; results: { channel_id: number; queued: boolean; message: string }[] }
+
+// ---------------------------------------------------------------- Phase 5: monitoring
+export interface MonAlert { severity: "warning" | "critical"; code: string; message: string; hint: string }
+export interface MonWorker { kind: string; online: boolean; state: string; worker_id: string | null; pid: number | null; current_job_id: number | null; heartbeat_age_sec: number | null; started_at: string | null }
+export interface QueueStat { queued: number; running: number; failed_24h?: number; succeeded_24h?: number; waiting_retry?: number; oldest_queued_sec?: number | null }
+export interface Monitoring {
+  generated_at: string; hostname: string; status: "ok" | "warning" | "critical";
+  host: { cpu_percent: number; cpu_count: number; load_avg: number[] | null; ram_total_gb: number; ram_percent: number; ram_available_mb: number; swap_percent: number | null; disk_total_gb: number; disk_free_gb: number; disk_percent: number; storage_dir: string; uptime_hours: number };
+  processes: { ffmpeg: { pid: number; rss_mb: number; elapsed_sec: number; cmd: string }[]; ffmpeg_rss_mb: number; app_processes: number; app_rss_mb: number };
+  workers: MonWorker[];
+  queues: { render: QueueStat; upload: QueueStat; analytics: QueueStat };
+  youtube: {
+    credentials: { valid: number; expired: number; revoked: number };
+    errors_24h: { category: string; level: string; count: number; last_at: string }[];
+    recent_errors: { at: string; category: string; level: string; message: string; channel_id: number | null }[];
+    sync_errors: { channel_id: number; channel_name: string; kind: string | null; error: string; retry_after: string | null }[];
+    quota_parked: number;
+  };
+  database: { ok: boolean; message: string; latency_ms?: number; size_mb?: number; connections?: number };
+  stalled: { kind: string; job_id: number; channel_id: number | null; age_sec: number; reason: string }[];
+  alerts: MonAlert[];
+  config: { secret_key_configured: boolean; ffmpeg_path: string | null; dashboard_auth_enabled: boolean; app_version: string; limits: Record<string, number> };
+}
+export interface MonHistory { hours: number; interval_seconds: number; points: { ts: string; cpu: number; ram: number; ram_available_mb: number; disk_free_gb: number; ffmpeg: number; ffmpeg_rss_mb: number; render_queue: number; upload_queue: number }[] }

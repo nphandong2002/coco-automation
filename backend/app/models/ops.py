@@ -146,6 +146,23 @@ class AnalyticsSyncState(Base):
     retry_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class SystemMetric(Base):
+    """One monitoring sample per minute (CPU/RAM/disk/queues) for the Monitoring charts. Pruned by maintenance."""
+
+    __tablename__ = "system_metrics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    cpu_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    ram_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    ram_available_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    disk_free_gb: Mapped[float] = mapped_column(Float, nullable=False)
+    ffmpeg_processes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ffmpeg_rss_mb: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    render_queue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    upload_queue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class SchedulerJob(TimestampMixin, Base):
     """Persistent job queue (survives restarts). `dedupe_key` prevents duplicates."""
 

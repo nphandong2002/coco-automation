@@ -2,10 +2,10 @@
 
 Nền tảng quản lý nhiều kênh YouTube phong cách Cozy / Study With Me / ASMR / Pomodoro: mỗi kênh có thương hiệu, nhân vật, nội dung, lịch đăng và thống kê **độc lập**. Chạy trên Ubuntu (PC 8 GB RAM), dashboard truy cập qua trình duyệt trong mạng LAN.
 
-> **Trạng thái: Phase 4** — Phase 1–3 (kênh, nhân vật, nội dung, render FFmpeg, YouTube OAuth theo kênh, upload, Publishing Scheduler) + **Analytics**: đồng bộ YouTube Analytics API, dashboard thống kê, so sánh video/kênh, chấm điểm hiệu quả và đề xuất nội dung.
-> Chưa có: Monitoring/Recovery nâng cao (Phase 5). Bộ test cần PostgreSQL thật (`TEST_DATABASE_URL`).
+> **Trạng thái: Phase 5 (hoàn tất lộ trình)** — kênh, nhân vật, nội dung, render FFmpeg, YouTube OAuth/upload/lịch đăng, Analytics + **Monitoring, watchdog tự khôi phục, health check, logrotate, giới hạn tài nguyên** ([docs/OPERATIONS.md](docs/OPERATIONS.md)).
+> Bộ test cần PostgreSQL thật (`TEST_DATABASE_URL`).
 >
-> **Nâng cấp từ Phase 3:** chạy `scripts/restart.sh` (tự áp dụng migration `0004`), rồi **ngắt kết nối và kết nối lại** các kênh YouTube đã nối trước đó nếu Analytics báo thiếu quyền (xem [YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md)).
+> **Nâng cấp từ Phase 3/4:** chạy `scripts/restart.sh` (tự áp dụng migration `0004`–`0005`; nếu đã cài systemd, chạy lại `install.sh --systemd` để có health check/logrotate), rồi **ngắt kết nối và kết nối lại** các kênh YouTube đã nối trước đó nếu Analytics báo thiếu quyền (xem [YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md)).
 
 ## Cài đặt nhanh (Ubuntu 22.04 / 24.04)
 
@@ -23,7 +23,7 @@ Mở `http://<ip-máy>:8080` — đăng nhập `admin` / mật khẩu in ra khi 
 | `scripts/backup.sh [--db-only]` | Sao lưu DB + file + `.env` vào `backups/` |
 | `scripts/restore.sh <file> [--with-env]` | Khôi phục |
 
-Chi tiết: [docs/INSTALL_UBUNTU.md](docs/INSTALL_UBUNTU.md) · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · [docs/YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
+Chi tiết: [docs/INSTALL_UBUNTU.md](docs/INSTALL_UBUNTU.md) · [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · [docs/YOUTUBE_SETUP.md](docs/YOUTUBE_SETUP.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/OPERATIONS.md](docs/OPERATIONS.md) · [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 
 ## Cấu trúc thư mục
 

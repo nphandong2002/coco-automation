@@ -15,6 +15,7 @@ import Production from "./pages/Production";
 import Publishing from "./pages/Publishing";
 import Scheduler from "./pages/Scheduler";
 import Analytics from "./pages/Analytics";
+import Monitoring from "./pages/Monitoring";
 import "./index.css";
 
 function NotFound() {
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="publishing" element={<Publishing />} />
           <Route path="scheduler" element={<Scheduler />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="monitoring" element={<Monitoring />} />
           <Route path="assets" element={<Assets />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />

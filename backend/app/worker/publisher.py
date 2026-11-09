@@ -232,6 +232,7 @@ class PublishWorker:
         if now - self._last_progress < 2.0 and sent < total:
             return
         self._last_progress = now
+        self.heartbeat()  # a multi-hour upload must not look like a dead worker
         try:
             with SessionLocal() as db:
                 job = db.get(PublishingJob, job_id)

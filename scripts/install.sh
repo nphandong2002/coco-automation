@@ -69,6 +69,15 @@ if [[ $WITH_SYSTEMD -eq 1 ]]; then
     "$APP_DIR/deploy/systemd/coco-automation.service" | sudo tee /etc/systemd/system/coco-automation.service >/dev/null
   sudo systemctl daemon-reload
   sudo systemctl enable coco-automation
+  # Phase 5: health check timer (restarts the service if the API hangs), log rotation, restart permission
+  for u in coco-healthcheck.service coco-healthcheck.timer; do
+    sed -e "s#__APP_DIR__#$APP_DIR#g" -e "s#__USER__#$USER#g" "$APP_DIR/deploy/systemd/$u"       | sudo tee "/etc/systemd/system/$u" >/dev/null
+  done
+  sed -e "s#__APP_DIR__#$APP_DIR#g" "$APP_DIR/deploy/logrotate/coco-automation"     | sudo tee /etc/logrotate.d/coco-automation >/dev/null
+  echo "$USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart coco-automation, /usr/bin/systemctl start coco-automation, /usr/bin/systemctl stop coco-automation"     | sudo tee /etc/sudoers.d/coco-automation >/dev/null
+  sudo chmod 440 /etc/sudoers.d/coco-automation
+  sudo systemctl daemon-reload
+  sudo systemctl enable coco-healthcheck.timer
   info "Đã bật tự khởi động cùng hệ thống."
 else
   info "7/7 Bỏ qua systemd (chạy lại với --systemd để tự khởi động khi boot)."

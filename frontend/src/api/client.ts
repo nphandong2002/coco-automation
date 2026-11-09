@@ -3,7 +3,7 @@ import type {
   CharacterVersion, ContentInput, ContentProject, Idea, Job, LogEntry, Overview, ProductionStatusInfo,
   SystemInfo, Template, ValidationReport, VersionFields, Video,
   AnalyticsFilters, AnalyticsSummary, ChannelCompare, Distribution, Insights, RetentionData, SyncQueued, SyncStatusInfo,
-  Timeseries, VideoList,
+  Timeseries, VideoList, Monitoring, MonHistory,
   Playlist, PublishInput, PublishJob, PublishStatus, Slots, YoutubeConfig, YoutubeStatus,
 } from "./types";
 
@@ -161,6 +161,12 @@ export const api = {
   createPublish: (cid: number, body: PublishInput) => request<PublishJob>("POST", `${ch(cid)}/publishing/jobs`, body),
   cancelPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/cancel`),
   retryPublish: (id: number) => request<PublishJob>("POST", `/api/publishing/jobs/${id}/retry`),
+  // ---- Phase 5: monitoring
+  monitoring: () => request<Monitoring>("GET", "/api/monitoring"),
+  monitoringHistory: (hours: number) => request<MonHistory>("GET", `/api/monitoring/history?hours=${hours}`),
+  runMaintenance: () => request<Record<string, number | string>>("POST", "/api/monitoring/maintenance"),
+  runWatchdog: () => request<{ actions: string[] }>("POST", "/api/monitoring/watchdog"),
+
   // ---- Phase 4: analytics
   anSummary: (f: AnalyticsFilters) => request<AnalyticsSummary>("GET", `/api/analytics/summary${qs({ ...f })}`),
   anSeries: (f: AnalyticsFilters, granularity: string, split: boolean) =>

@@ -148,7 +148,8 @@ def _save_state(channel_id: int, result: SyncResult, synced_through: date | None
 
 # ---------------------------------------------------------------- main entry
 def sync_channel(channel_id: int, *, http: httpx.Client | None = None, backfill_days: int | None = None,
-                 today: date | None = None, client: YouTubeClient | None = None) -> SyncResult:
+                 today: date | None = None, client: YouTubeClient | None = None,
+                 heartbeat=None) -> SyncResult:  # noqa: ANN001
     """Sync one channel. Never raises for API problems — they are recorded in the sync state."""
     s = get_settings()
     today = today or _utc_today()
@@ -187,8 +188,8 @@ def sync_channel(channel_id: int, *, http: httpx.Client | None = None, backfill_
     retry_after: datetime | None = None
     try:
         new_through = _sync_channel_level(client, channel_id, start, end, today, result)
-        _sync_videos(client, channel_id, start, first_start, end, today, result)
-        _sync_retention(client, channel_id, today, result)
+        _sync_videos(client, channel_id, start, first_start, end, today, result, heartbeat)
+        _sync_retention(client, channel_id, today, result, heartbeat)
     except ApiError as exc:
         _fail(result, exc)
         if exc.kind == QUOTA:
@@ -255,7 +256,7 @@ def _sync_channel_level(client: YouTubeClient, channel_id: int, start: date, end
 
 # ---------------------------------------------------------------- stage 2: per video
 def _sync_videos(client: YouTubeClient, channel_id: int, start: date, first_start: date, end: date,
-                 today: date, result: SyncResult) -> None:
+                 today: date, result: SyncResult, heartbeat=None) -> None:  # noqa: ANN001
     s = get_settings()
     now = _now()
     with SessionLocal() as db:
@@ -271,6 +272,8 @@ def _sync_videos(client: YouTubeClient, channel_id: int, start: date, first_star
     vids = sorted(vids, key=lambda v: last.get(v.id) or epoch)[: s.analytics_max_videos_per_sync]
     consecutive = 0
     for vid, yt_id, published_at in vids:
+        if heartbeat:
+            heartbeat()
         if published_at is not None and published_at > now:
             continue  # scheduled in the future: YouTube has no report yet
         vstart = start if vid in last else first_start
@@ -298,7 +301,8 @@ def _sync_videos(client: YouTubeClient, channel_id: int, start: date, first_star
 
 
 # ---------------------------------------------------------------- stage 3: retention
-def _sync_retention(client: YouTubeClient, channel_id: int, today: date, result: SyncResult) -> None:
+def _sync_retention(client: YouTubeClient, channel_id: int, today: date, result: SyncResult,
+                    heartbeat=None) -> None:  # noqa: ANN001
     s = get_settings()
     now = _now()
     min_published = now - timedelta(days=s.analytics_retention_min_age_days)
@@ -314,6 +318,8 @@ def _sync_retention(client: YouTubeClient, channel_id: int, today: date, result:
             .limit(s.analytics_max_retention_per_sync)
         ).all()
     for vid, yt_id, published_at in cand:
+        if heartbeat:
+            heartbeat()
         try:
             points = yta.video_retention(client, yt_id, published_at.date(), today)
         except ApiError as exc:

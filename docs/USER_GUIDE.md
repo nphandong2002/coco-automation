@@ -85,8 +85,15 @@ watch time/ngày (30%), % xem TB (20%), giữ chân (15%), subscriber/1000 lư�
 chỉ video đủ 8 ngày dữ liệu; cột nhạt = dưới 3 mẫu), video yếu và danh sách **đề xuất nội dung tiếp theo** kèm số liệu căn cứ và độ tin cậy.
 Khi chưa đủ dữ liệu, hệ thống nói rõ thay vì đoán. Đề xuất chủ đề chỉ là hướng đi — hãy tạo nội dung **mới** (bối cảnh/âm thanh khác), không nhân bản hàng loạt chỉ đổi tiêu đề.
 
-## 6. Các chức năng phase sau
+## 6. Monitoring (Phase 5)
 
-| Hướng dẫn | Phase |
-|---|---|
-| Monitoring, recovery, tối ưu tài nguyên | 5 |
+Menu **Monitoring** cho biết hệ thống có khỏe không: banner *OK / cảnh báo / nghiêm trọng* kèm cách xử lý, CPU/RAM/ổ đĩa, database,
+lịch sử tài nguyên, 4 worker (render, upload, analytics, monitor), hàng đợi, tiến trình FFmpeg và sức khỏe YouTube.
+- **Kiểm tra tác vụ treo**: chạy watchdog ngay (tác vụ không còn tiến triển được khôi phục tự động).
+- **Dọn dẹp ngay**: xóa nhật ký/số đo/file tạm cũ.
+
+Khi có cảnh báo, trang Overview hiện dải thông báo dẫn tới Monitoring. Toàn bộ cơ chế khôi phục: [OPERATIONS.md](OPERATIONS.md).
+
+## 7. Backup & restore
+
+Xem [BACKUP_RESTORE.md](BACKUP_RESTORE.md).

@@ -10,6 +10,7 @@ from app.models.ops import (
     AnalyticsVideo,
     SchedulerJob,
     SystemLog,
+    SystemMetric,
     WorkerStatus,
 )
 from app.models.production import (
@@ -43,5 +44,6 @@ __all__ = [
     "AnalyticsSyncState",
     "SchedulerJob",
     "SystemLog",
+    "SystemMetric",
     "WorkerStatus",
 ]

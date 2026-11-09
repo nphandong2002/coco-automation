@@ -20,6 +20,7 @@ function Sparkline({ points }: { points: { day: string; views: number }[] }) {
 
 export default function Overview() {
   const { data, error, loading, reload } = useApi(api.overview);
+  const mon = useApi(api.monitoring);
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
   if (!data) return null;
@@ -35,6 +36,13 @@ export default function Overview() {
         <h1 className="h1">Overview</h1>
         <div className="flex gap-2"><Link className="btn-ghost" to="/analytics">▲ Analytics chi tiết</Link><button className="btn-ghost" onClick={reload}>↻ Làm mới</button></div>
       </div>
+
+      {mon.data && mon.data.status !== "ok" && (
+        <Link to="/monitoring" className={`card block p-3 text-sm ${mon.data.status === "critical" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          <b>{mon.data.status === "critical" ? "✖ Hệ thống cần xử lý ngay" : "! Hệ thống có cảnh báo"}:</b> {mon.data.alerts[0]?.message}
+          {mon.data.alerts.length > 1 && ` (+${mon.data.alerts.length - 1} nữa)`} — xem Monitoring →
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Tổng số kênh" value={data.channels_total}

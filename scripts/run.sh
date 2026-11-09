@@ -42,7 +42,8 @@ trap shutdown TERM INT
 supervise render
 supervise publish
 supervise analytics
-info "Khởi chạy Coco Automation tại http://${HOST:-0.0.0.0}:$PORT (API + render + publish + analytics workers)"
+supervise monitor
+info "Khởi chạy Coco Automation tại http://${HOST:-0.0.0.0}:$PORT (API + render + publish + analytics + monitor)"
 # Single uvicorn worker on purpose: heavy rendering is serialized (8 GB RAM host).
 "$VENV/bin/uvicorn" app.main:app --host "${HOST:-0.0.0.0}" --port "$PORT" --workers 1 \
   --proxy-headers --timeout-graceful-shutdown 30 &

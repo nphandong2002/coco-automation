@@ -152,7 +152,8 @@ class AnalyticsWorker:
         self.heartbeat()
         try:
             result = analytics_sync.sync_channel(channel_id, http=self.http,
-                                                 backfill_days=payload.get("backfill_days"))
+                                                 backfill_days=payload.get("backfill_days"),
+                                                 heartbeat=self.heartbeat)
             analytics_sync.finish_job(job_id, ok=result.status != "error", error=result.error)
         except Exception as exc:  # noqa: BLE001 - never let one job kill the worker
             log.exception("Analytics job #%s crashed", job_id)

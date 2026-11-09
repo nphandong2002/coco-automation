@@ -18,7 +18,7 @@ Script sẽ:
 3. Tạo `.env` với mật khẩu DB ngẫu nhiên, `SECRET_KEY` Fernet, mật khẩu dashboard ngẫu nhiên (in ra màn hình).
 4. Tạo role/database PostgreSQL `coco`.
 5. Chạy migration (`alembic upgrade head`) và build dashboard.
-6. Cài & enable service `coco-automation` (tự chạy khi khởi động máy).
+6. Cài & enable service `coco-automation` (tự chạy khi khởi động máy), `coco-healthcheck.timer` (tự restart khi API treo), logrotate cho `logs/`. Chi tiết: [OPERATIONS.md](OPERATIONS.md).
 
 Khởi chạy: `./scripts/start.sh` → mở `http://<ip-máy>:8080`.
 
@@ -49,7 +49,8 @@ Sau khi sửa `.env`: `./scripts/restart.sh`.
 ./scripts/start.sh      # khởi chạy (systemd nếu đã cài, nếu không chạy nền với PID file)
 ./scripts/stop.sh
 ./scripts/restart.sh
-./scripts/status.sh     # trạng thái + /api/health
+./scripts/status.sh     # trạng thái + /api/health + workers + cảnh báo
+./scripts/healthcheck.sh # kiểm tra tay (timer systemd gọi mỗi phút)
 tail -f logs/app.log logs/server.out
 journalctl -u coco-automation -f    # khi chạy bằng systemd
 ```
@@ -84,4 +85,5 @@ cp .env.example .env && chmod 600 .env       # điền DATABASE_URL, SECRET_KEY,
 | `start.sh` báo không phản hồi sau 30s | Xem `logs/server.out`; thường do PostgreSQL chưa chạy (`sudo systemctl start postgresql`) hoặc sai `DATABASE_URL` |
 | Trang trắng / thông báo "Frontend chưa được build" | `cd frontend && npm ci && npm run build` |
 | Hỏi mật khẩu liên tục | Kiểm tra `DASHBOARD_USERNAME/PASSWORD` trong `.env` |
+| Cảnh báo/trạng thái hệ thống | Menu **Monitoring**; bảng mã cảnh báo ở [OPERATIONS.md](OPERATIONS.md) |
 | System Settings báo thiếu FFmpeg | `sudo apt install ffmpeg` (bắt buộc từ Phase 2) |

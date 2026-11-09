@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Coco Automation"
-    app_version: str = "0.4.0"
+    app_version: str = "0.5.0"
     environment: str = "production"
 
     host: str = "0.0.0.0"
@@ -88,6 +88,17 @@ class Settings(BaseSettings):
     analytics_retention_refresh_hours: int = 24
     analytics_preliminary_days: int = 3          # newest days are flagged "preliminary"
     analytics_poll_seconds: float = 15.0
+
+    # ---------------------------------------------------------------- Phase 5: monitoring & recovery
+    monitor_interval_seconds: int = 60           # sampling + watchdog period
+    metrics_retention_days: int = 7
+    log_retention_days: int = 90                 # system_logs rows older than this are pruned
+    min_free_ram_mb: int = 700                   # render worker waits instead of starting a job below this
+    ram_warn_percent: float = 90.0
+    disk_warn_gb: float = 15.0                   # warning; below min_free_disk_gb it is critical
+    publish_stall_seconds: int = 600             # RUNNING upload with no progress this long = hung
+    watchdog_kill_grace_seconds: int = 20        # SIGTERM first, SIGKILL after this
+    tmp_max_age_hours: int = 24                  # leftover render temp files older than this are removed
 
 
 @lru_cache
