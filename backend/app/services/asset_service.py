@@ -33,6 +33,7 @@ EXTENSIONS: dict[str, tuple[AssetKind, str]] = {
     "aac": (AssetKind.AUDIO, "audio/aac"),
     "mp4": (AssetKind.VIDEO, "video/mp4"), "mov": (AssetKind.VIDEO, "video/quicktime"),
     "webm": (AssetKind.VIDEO, "video/webm"), "mkv": (AssetKind.VIDEO, "video/x-matroska"),
+    "glb": (AssetKind.MODEL, "model/gltf-binary"),
     "ttf": (AssetKind.FONT, "font/ttf"), "otf": (AssetKind.FONT, "font/otf"),
 }
 GENERATOR_SOURCE = "Coco Automation – procedural generator (owned)"
@@ -100,8 +101,42 @@ def list_assets(db: Session, *, scope: str = "all", channel_id: int | None = Non
     return [asset_out(a, name) for a, name in rows]
 
 
+def inspect_glb(path: Path) -> dict:
+    """Validate a binary glTF 2.0 file and report its animation clips / meshes (used by the 3D editor)."""
+    import json
+    import struct
+    try:
+        with path.open("rb") as f:
+            head = f.read(12)
+            if len(head) < 12:
+                raise AppError("File .glb quá ngắn")
+            magic, version, length = struct.unpack("<4sII", head)
+            if magic != b"glTF" or version != 2:
+                raise AppError("File không phải glTF 2.0 nhị phân (.glb)")
+            if length != path.stat().st_size:
+                raise AppError("File .glb bị cắt cụt hoặc hỏng (độ dài không khớp)")
+            chunk = f.read(8)
+            clen, ctype = struct.unpack("<I4s", chunk)
+            if ctype != b"JSON" or clen > 32 * 1024 * 1024:
+                raise AppError("File .glb thiếu khối JSON hợp lệ")
+            doc = json.loads(f.read(clen).decode("utf-8"))
+    except (struct.error, UnicodeDecodeError, ValueError) as exc:
+        raise AppError("File .glb không đọc được") from exc
+    anims = [a.get("name") or f"animation_{i}" for i, a in enumerate(doc.get("animations", []))]
+    ext_required = [e for e in doc.get("extensionsRequired", []) if e not in ("KHR_materials_unlit",
+                    "KHR_texture_transform", "KHR_lights_punctual", "KHR_materials_emissive_strength",
+                    "KHR_mesh_quantization", "EXT_meshopt_compression", "KHR_draco_mesh_compression")]
+    if ext_required:
+        raise AppError(f"File .glb dùng extension chưa hỗ trợ: {', '.join(ext_required)}")
+    return {"meta": {"animations": anims, "meshes": len(doc.get("meshes", [])),
+                     "nodes": len(doc.get("nodes", [])), "skinned": bool(doc.get("skins")),
+                     "generator": (doc.get("asset") or {}).get("generator")}}
+
+
 def _inspect(kind: AssetKind, path: Path) -> dict:
     """Validate the stored file really is what its extension says. Returns metadata fields."""
+    if kind == AssetKind.MODEL:
+        return inspect_glb(path)
     if kind == AssetKind.IMAGE:
         try:
             with Image.open(path) as im:
@@ -158,7 +193,8 @@ def create_from_upload(db: Session, upload: UploadFile, *, channel_id: int | Non
     if ext not in EXTENSIONS:
         raise AppError(f"Định dạng '.{ext}' không hỗ trợ. Cho phép: {', '.join(sorted(EXTENSIONS))}")
     kind, mime = EXTENSIONS[ext]
-    limit = get_settings().max_upload_mb if kind == AssetKind.IMAGE else get_settings().max_asset_upload_mb
+    s = get_settings()
+    limit = {AssetKind.IMAGE: s.max_upload_mb, AssetKind.MODEL: s.max_model_upload_mb}.get(kind, s.max_asset_upload_mb)
     info = storage.save_stream(upload.file, _scope_dir(channel_id, kind), "jpg" if ext == "jpeg" else ext,
                                limit * 1024 * 1024)
     dup = _duplicate(db, channel_id, info["sha256"])

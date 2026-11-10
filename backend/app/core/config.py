@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------- Phase 2: assets
     # Audio/video assets can be large: they are streamed to disk, never held in RAM.
     max_asset_upload_mb: int = 2048
+    max_model_upload_mb: int = 200   # .glb 3D models
 
     # ---------------------------------------------------------------- Phase 2: rendering
     ffmpeg_path: str = ""          # empty = find "ffmpeg" on PATH

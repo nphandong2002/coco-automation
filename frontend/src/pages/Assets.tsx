@@ -102,7 +102,7 @@ function UploadModal({ channels, defaultScope, onClose, onDone }: { channels: Ch
       <form className="space-y-4" onSubmit={submit}>
         <Field label="File" hint="Ảnh PNG/JPG/WEBP · Âm thanh MP3/WAV/FLAC/OGG/M4A · Video MP4/MOV/WEBM · Font TTF/OTF">
           <input type="file" className="input" required onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            accept=".png,.jpg,.jpeg,.webp,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.mp4,.mov,.webm,.mkv,.ttf,.otf" />
+            accept=".png,.jpg,.jpeg,.webp,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.mp4,.mov,.webm,.mkv,.ttf,.otf,.glb" />
         </Field>
         <ScopeSelect channels={channels} value={scope} onChange={setScope} />
         <Field label="Tên hiển thị"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Để trống = tên file" /></Field>

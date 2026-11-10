@@ -17,7 +17,7 @@ export const LICENSES: Record<LicenseType, string> = {
   royalty_free: "Royalty-free", licensed: "Đã mua giấy phép",
 };
 
-export const KINDS: Record<AssetKind, string> = { image: "Hình ảnh", audio: "Âm thanh", video: "Video", font: "Font" };
+export const KINDS: Record<AssetKind, string> = { image: "Hình ảnh", audio: "Âm thanh", video: "Video", font: "Font", model: "Model 3D (.glb)" };
 
 const PROD: Record<ProductionStatus, { label: string; cls: string }> = {
   draft: { label: "Nháp", cls: "bg-slate-100 text-slate-700" },
@@ -95,7 +95,7 @@ export function useCapabilities() {
 export function AssetThumb({ a, className = "" }: { a: Asset; className?: string }) {
   if (a.kind === "image") return <img src={a.url} alt={a.name} className={`h-full w-full object-cover ${className}`} loading="lazy" />;
   if (a.kind === "video") return <video src={a.url} className={`h-full w-full object-cover ${className}`} muted preload="metadata" />;
-  return <div className={`flex h-full w-full items-center justify-center bg-brand-50 text-3xl ${className}`}>{a.kind === "audio" ? "♫" : "Aa"}</div>;
+  return <div className={`flex h-full w-full items-center justify-center bg-brand-50 text-3xl ${className}`}>{a.kind === "audio" ? "♫" : a.kind === "model" ? "⬡" : "Aa"}</div>;
 }
 
 /** Choose one usable asset (channel's own + shared library) of a given kind. */

@@ -52,6 +52,7 @@ class AssetKind(str, enum.Enum):
     VIDEO = "video"
     AUDIO = "audio"
     FONT = "font"
+    MODEL = "model"            # .glb 3D character / prop
 
 
 class AssetSource(str, enum.Enum):

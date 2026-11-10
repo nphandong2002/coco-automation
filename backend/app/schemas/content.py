@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import DURATION_CHOICES, ContentType, IdeaStatus, ProductionStatus
 from app.render.audio import GENERATORS
+from app.schemas.scene3d import Scene3D
 from app.render.video import (
     BACKGROUND_MOTIONS,
     CHARACTER_MOTIONS,
@@ -178,6 +179,7 @@ class ContentFields(BaseModel):
     setting: str = Field(default="", max_length=200)
     background_asset_id: int | None = None
     animation: AnimationConfig = Field(default_factory=AnimationConfig)
+    scene3d: Scene3D | None = None
     audio_layers: list[AudioLayerIn] = Field(default_factory=list, max_length=8)
     duration_minutes: int = 60
     pomodoro: PomodoroConfig | None = None
@@ -223,6 +225,8 @@ class ContentUpdate(BaseModel):
     background_asset_id: int | None = None
     clear_background: bool = False
     animation: AnimationConfig | None = None
+    scene3d: Scene3D | None = None
+    clear_scene3d: bool = False
     audio_layers: list[AudioLayerIn] | None = Field(default=None, max_length=8)
     duration_minutes: int | None = None
     pomodoro: PomodoroConfig | None = None
@@ -279,6 +283,8 @@ class ContentOut(BaseModel):
     background_asset_id: int | None
     background_url: str | None
     animation: dict
+    scene3d: dict | None = None
+    scene3d_model_url: str | None = None
     audio_layers: list[dict]
     duration_minutes: int
     pomodoro: dict | None

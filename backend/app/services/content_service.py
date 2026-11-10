@@ -123,7 +123,8 @@ def project_out(db: Session, p: ContentProject) -> ContentOut:
         character_version_id=p.character_version_id, character_version_no=ver.version_no if ver else None,
         character_current_version_id=char.current_version_id if char else None,
         theme=p.theme, script=p.script, setting=p.setting, background_asset_id=p.background_asset_id,
-        background_url=bg, animation=p.animation, audio_layers=p.audio_layers,
+        background_url=bg, animation=p.animation, scene3d=p.scene3d, scene3d_model_url=_scene_model_url(db, p),
+        audio_layers=p.audio_layers,
         duration_minutes=p.duration_minutes, pomodoro=p.pomodoro, render_settings=p.render_settings,
         youtube_title=p.youtube_title, youtube_description=p.youtube_description, youtube_tags=p.youtube_tags,
         thumbnail_url=storage.media_url(p.thumbnail_path), status=p.status, last_error=p.last_error,
@@ -149,6 +150,12 @@ def list_projects(db: Session, *, channel_id: int | None = None, status: Product
     return [project_out(db, p) for p in rows]
 
 
+def _scene_model_url(db: Session, p: ContentProject) -> str | None:
+    asset_id = ((p.scene3d or {}).get("character") or {}).get("asset_id")
+    a = db.get(Asset, asset_id) if asset_id else None
+    return storage.media_url(a.file_path) if a is not None else None
+
+
 # ----------------------------------------------------------------- fingerprint
 def compute_fingerprint(p: ContentProject) -> str:
     rs = p.render_settings or {}
@@ -160,6 +167,7 @@ def compute_fingerprint(p: ContentProject) -> str:
         "background": p.background_asset_id,
         "character": [p.character_id, p.character_version_id],
         "animation": p.animation or {},
+        "scene3d": p.scene3d or None,
         "audio": sorted(
             [l.get("kind"), l.get("asset_id"), l.get("generator"), round(float(l.get("volume", 1)), 2)]
             for l in (p.audio_layers or [])
@@ -190,7 +198,10 @@ def _ensure_unique(db: Session, p: ContentProject) -> None:
 
 # ----------------------------------------------------------------- validation of references
 def _check_refs(db: Session, channel_id: int, *, background_asset_id: int | None, audio_layers: list[dict],
-                render_settings: dict) -> None:
+                render_settings: dict, scene3d: dict | None = None) -> None:
+    model_id = ((scene3d or {}).get("character") or {}).get("asset_id")
+    if model_id is not None:
+        get_usable(db, channel_id, model_id, AssetKind.MODEL)
     if background_asset_id is not None:
         get_usable(db, channel_id, background_asset_id, AssetKind.IMAGE)
     for layer in audio_layers:
@@ -242,7 +253,8 @@ def create_project(db: Session, channel: Channel, data: ContentCreate) -> Conten
         if idea is None or idea.channel_id != channel.id:
             raise NotFound(f"Kênh không có ý tưởng #{data.idea_id}")
     _check_refs(db, channel.id, background_asset_id=values["background_asset_id"],
-                audio_layers=values["audio_layers"], render_settings=values["render_settings"])
+                audio_layers=values["audio_layers"], render_settings=values["render_settings"],
+                scene3d=values.get("scene3d"))
     char_id = version_id = None
     if values.get("character_id") is not None:
         char_id, version_id = _pin_character(db, channel.id, values["character_id"])
@@ -264,20 +276,24 @@ def create_project(db: Session, channel: Channel, data: ContentCreate) -> Conten
     return p
 
 
-RENDER_FIELDS = {"content_type", "theme", "setting", "background_asset_id", "animation", "audio_layers",
+RENDER_FIELDS = {"content_type", "theme", "setting", "background_asset_id", "animation", "scene3d", "audio_layers",
                  "duration_minutes", "pomodoro", "render_settings", "character_id"}
 
 
 def update_project(db: Session, p: ContentProject, data: ContentUpdate) -> ContentProject:
     if p.status in LOCKED_STATUSES:
         raise Conflict("Dự án đang trong hàng đợi / đang render. Hủy tác vụ render trước khi sửa.")
-    changes = data.model_dump(exclude_unset=True, exclude={"clear_character", "clear_background", "clear_pomodoro"})
+    changes = data.model_dump(exclude_unset=True, exclude={"clear_character", "clear_background", "clear_pomodoro",
+                                                                         "clear_scene3d"})
     changes = {k: v for k, v in changes.items() if v is not None}
     before = compute_fingerprint(p)
 
     if data.clear_background:
         p.background_asset_id = None
         changes.pop("background_asset_id", None)
+    if data.clear_scene3d:
+        p.scene3d = None
+        changes.pop("scene3d", None)
     if data.clear_pomodoro:
         p.pomodoro = None
         changes.pop("pomodoro", None)
@@ -288,7 +304,8 @@ def update_project(db: Session, p: ContentProject, data: ContentUpdate) -> Conte
     _check_refs(db, p.channel_id,
                 background_asset_id=changes.get("background_asset_id"),
                 audio_layers=changes.get("audio_layers", []),
-                render_settings=changes.get("render_settings", {}))
+                render_settings=changes.get("render_settings", {}),
+                scene3d=changes.get("scene3d"))
     if "character_id" in changes and changes["character_id"] != p.character_id:
         p.character_id, p.character_version_id = _pin_character(db, p.channel_id, changes.pop("character_id"))
     changes.pop("character_id", None)

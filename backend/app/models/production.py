@@ -145,6 +145,8 @@ class ContentProject(TimestampMixin, Base):
     setting: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     background_asset_id: Mapped[int | None] = mapped_column(ForeignKey("assets.id", ondelete="SET NULL"))
     animation: Mapped[dict] = mapped_column(default=dict, nullable=False)
+    # 3D scene (see schemas/scene3d.py): drives the dashboard viewer and the 3D render
+    scene3d: Mapped[dict | None] = mapped_column(default=None)
     # [{"asset_id": 1, "volume": 0.8, "loop": true}]
     audio_layers: Mapped[list] = mapped_column(default=list, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)

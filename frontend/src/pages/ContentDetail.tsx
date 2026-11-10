@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Asset, AudioLayer, Capabilities, ContentInput, ContentProject, ContentType, PomodoroConfig, RenderSettings } from "../api/types";
@@ -7,8 +7,10 @@ import {
 } from "../components/production";
 import { Badge, ErrorBox, Field, ImageUpload, Loading, Modal, Tabs } from "../components/ui";
 import { useAction, useApi } from "../lib/hooks";
+// three.js is large: load the 3D editor only when the tab is opened
+const Scene3DEditor = lazy(() => import("../components/scene3d").then((m) => ({ default: m.Scene3DEditor })));
 
-type Tab = "info" | "visual" | "audio" | "timer" | "youtube" | "render";
+type Tab = "info" | "visual" | "audio" | "scene3d" | "timer" | "youtube" | "render";
 
 interface Draft {
   title: string; content_type: ContentType; theme: string; setting: string; script: string;
@@ -105,13 +107,14 @@ export default function ContentDetail() {
 
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { key: "info", label: "Thông tin" }, { key: "visual", label: "Hình ảnh & nhân vật" }, { key: "audio", label: "Âm thanh" },
-        { key: "timer", label: "Pomodoro / đồng hồ" }, { key: "youtube", label: "YouTube" }, { key: "render", label: "Render" },
+        { key: "scene3d", label: "Cảnh 3D" }, { key: "timer", label: "Pomodoro / đồng hồ" }, { key: "youtube", label: "YouTube" }, { key: "render", label: "Render" },
       ]} />
 
       <fieldset disabled={locked} className="contents">
         {tab === "info" && <InfoTab d={d} set={set} caps={caps.data} />}
         {tab === "visual" && <VisualTab d={d} set={set} p={p} caps={caps.data} onProject={setData} />}
         {tab === "audio" && <AudioTab d={d} set={set} cid={cid} caps={caps.data} />}
+        {tab === "scene3d" && <Suspense fallback={<Loading />}><Scene3DEditor p={p} onProject={setData} /></Suspense>}
         {tab === "timer" && <TimerTab d={d} set={set} caps={caps.data} />}
         {tab === "youtube" && <YoutubeTab d={d} set={set} p={p} dirty={dirty} save={save} onProject={setData} />}
       </fieldset>

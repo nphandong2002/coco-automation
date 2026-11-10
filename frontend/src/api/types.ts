@@ -149,7 +149,7 @@ export interface SystemInfo {
 }
 
 // ------------------------------------------------------------------ Phase 2
-export type AssetKind = "image" | "audio" | "video" | "font";
+export type AssetKind = "image" | "audio" | "video" | "font" | "model";
 export type LicenseType = "owned" | "cc0" | "cc_by" | "royalty_free" | "licensed";
 export type ContentType =
   | "study_with_me" | "pomodoro" | "cozy_ambience" | "rain_sounds" | "fireplace_sounds"
@@ -211,6 +211,8 @@ export interface ContentProject {
   background_asset_id: number | null;
   background_url: string | null;
   animation: AnimationConfig;
+  scene3d: import("../scene3d/types").Scene3D | null;
+  scene3d_model_url: string | null;
   audio_layers: AudioLayer[];
   duration_minutes: number;
   pomodoro: PomodoroConfig | null;
@@ -231,6 +233,8 @@ export interface ContentProject {
 }
 
 export interface ContentInput {
+  scene3d?: import("../scene3d/types").Scene3D;
+  clear_scene3d?: boolean;
   title: string;
   content_type: ContentType;
   character_id?: number | null;
