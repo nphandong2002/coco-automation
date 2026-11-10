@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 Vec3 = tuple[float, float, float]
-PRESETS = ("cozy_room", "rainy_window", "forest_cabin", "cafe")
+PRESETS = ("cozy_room", "rainy_window", "forest_cabin", "cafe", "library")
 REACTION_TRIGGERS = ("click", "rain_heavy", "fire_out", "break_time")
 
 
@@ -34,6 +34,7 @@ class Character3D(BaseModel):
     position: Vec3 = (0.9, 0.0, -0.2)
     rotation_y: float = Field(default=-25, ge=-360, le=360)   # degrees
     scale: float = Field(default=1.0, ge=0.05, le=20)
+    pose: Literal["stand", "study"] = "stand"             # study = seated at the library desk (library preset only)
     idle_animation: str | None = Field(default=None, max_length=80)
     # trigger -> animation clip name in the model, e.g. {"click": "Wave"}
     reactions: dict[str, str] = Field(default_factory=dict)
@@ -56,6 +57,8 @@ class Camera3D(BaseModel):
     position: Vec3 = (0.0, 1.5, 3.6)
     target: Vec3 = (0.0, 0.9, 0.0)
     fov: float = Field(default=45, ge=20, le=90)
+    motion: Literal["static", "drift", "breathe"] = "drift"   # slow periodic camera sway
+    motion_amount: float = Field(default=0.5, ge=0, le=1)
 
     @field_validator("position", "target")
     @classmethod
@@ -65,7 +68,7 @@ class Camera3D(BaseModel):
 
 class Scene3D(BaseModel):
     version: Literal[1] = 1
-    preset: Literal["cozy_room", "rainy_window", "forest_cabin", "cafe"] = "cozy_room"
+    preset: Literal["cozy_room", "rainy_window", "forest_cabin", "cafe", "library"] = "cozy_room"
     environment: Environment3D = Field(default_factory=Environment3D)
     character: Character3D = Field(default_factory=Character3D)
     camera: Camera3D = Field(default_factory=Camera3D)

@@ -132,3 +132,34 @@ def test_no_variant_when_character_has_no_break_reaction(tmp_path):
     res = pipeline.render(plan, resolve=storage.resolve, workdir=work, output_dir=tmp_path / "out",
                           log_file=tmp_path / "r.log", timeout=300)
     assert res.qc["passed"] and not (work / "loops.txt").exists() and not (work / "break.mp4").exists()
+
+
+# ------------------------------------------------------------------ library scene (high-angle, seated student, camera drift)
+def _library_plan(duration=24.0):
+    plan, phases = _plan_with_breaks(duration=duration)
+    sc = plan["scene3d"]["scene"]
+    sc["preset"] = "library"
+    sc["character"].update({"pose": "study", "position": [0, 0, 0], "rotation_y": 0})
+    sc["camera"].update({"position": [0, 5.3, 6.4], "target": [0, 0.5, -0.6], "fov": 40, "motion": "drift", "motion_amount": 0.6})
+    return plan, phases
+
+
+def test_library_scene_with_drifting_camera_loops_and_reacts(tmp_path):
+    import math
+    import re
+    plan, phases = _library_plan()
+    work = tmp_path / "work"
+    res = pipeline.render(plan, resolve=storage.resolve, workdir=work, output_dir=tmp_path / "out",
+                          log_file=tmp_path / "r.log", timeout=600)
+    assert res.qc["passed"]
+    # the loop grows to fit the 2.4 s stretch/yawn reaction, so read its real length from the capture log
+    loop_s = float(re.search(r"3D loop: ([0-9.]+)s", (tmp_path / "r.log").read_text(encoding="utf-8")).group(1))
+    L = round(loop_s * 30)
+    n_loops = math.floor(24.0 / loop_s)                         # whole loops only (the last one is cut short)
+    fr = _frames(res.video_path, n_loops * L)
+    expected = {int(p.start // loop_s) for p in phases if p.kind != "focus"} & set(range(n_loops))
+    per_loop = [max(_diff(fr[k * L + i], fr[i]) for i in range(0, L, 10)) for k in range(n_loops)]
+    for k, d in enumerate(per_loop):
+        assert (d > 1.0) == (k in expected), (loop_s, per_loop)
+    assert _diff(fr[0], fr[L]) < 0.05 or 1 in expected          # camera drift + routine repeat exactly
+    assert max(_diff(fr[i], fr[i + 10]) for i in range(0, L - 10, 10)) > 0.5   # and the picture really moves

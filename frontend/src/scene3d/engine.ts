@@ -7,6 +7,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Environment3D, PickTarget, Preset, ReactionTrigger, Scene3D, TimeOfDay } from "./types";
+import { box, mat, rng, Vignette } from "./look";
+import { buildLibrary, LIB_ROOM } from "./library";
+import type { LibResult } from "./library";
+import { Student } from "./student";
 
 interface PresetStyle {
   wall: number; floor: number; accent: number; wood: number;
@@ -18,6 +22,7 @@ const STYLES: Record<Preset, PresetStyle> = {
   rainy_window: { wall: 0xb8c4d6, floor: 0x7a6a62, accent: 0x7aa2e3, wood: 0x5b4a44, window: [2.2, 1.4], outside: "city", props: ["desk", "rug"] },
   forest_cabin: { wall: 0xa9744a, floor: 0x7b5233, accent: 0xe2a14a, wood: 0x5a3a22, window: [1.2, 1.0], outside: "trees", props: ["shelf", "rug"] },
   cafe: { wall: 0xf1e4d0, floor: 0x9b7556, accent: 0xd9825b, wood: 0x6b4a33, window: [1.8, 1.2], outside: "street", props: ["counter", "pendants"] },
+  library: { wall: 0xf0dfc2, floor: 0xd9a46a, accent: 0xd9825b, wood: 0x8a5a36, window: [1.5, 1.8], outside: "hills", props: [] },
 };
 const SKY: Record<TimeOfDay, { sky: number; ambient: number; ambientI: number; sun: number; sunI: number; stars: boolean }> = {
   day: { sky: 0xbfe3ff, ambient: 0xffffff, ambientI: 1.0, sun: 0xfff2d6, sunI: 1.4, stars: false },
@@ -25,20 +30,8 @@ const SKY: Record<TimeOfDay, { sky: number; ambient: number; ambientI: number; s
   night: { sky: 0x0b1226, ambient: 0x7f93d6, ambientI: 0.6, sun: 0x8da0e6, sunI: 0.55, stars: true },
 };
 
-function rng(seed: number) {
-  let a = seed >>> 0;
-  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
-const mat = (color: number, extra: THREE.MeshStandardMaterialParameters = {}) =>
-  new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.02, flatShading: true, ...extra });
-function box(w: number, h: number, d: number, color: number, x: number, y: number, z: number, extra: THREE.MeshStandardMaterialParameters = {}) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, extra));
-  m.position.set(x, y, z);
-  return m;
-}
-
 const RAIN_MAX = 1400;
-const ROOM = { w: 4.4, d: 4.2, h: 2.7, back: -2 };
+const SMALL_ROOM = { w: 4.4, d: 4.2, h: 2.7, back: -2 };
 
 export interface EngineOptions {
   interactive?: boolean;                 // orbit + picking (dashboard); false for headless capture
@@ -89,12 +82,28 @@ export class SceneEngine {
   private cold = 0;              // 0..1 hunched/shivering when the fireplace is out
   private stateMode = false;     // render mode: env reactions are steady STATES (looped), not one-shot events
   private pending: { name: ReactionTrigger; at: number } | null = null;
+  private room = SMALL_ROOM;
+  private seat: THREE.Vector3 | null = null;     // library: where the student sits
+  private student: Student | null = null;
+  private hasFire = true;
+  private shadows = false;
+  private vignette = new Vignette(0.4);
+  private camBase = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 45 };
+  private previewMotion = false;
 
   constructor(private canvas: HTMLCanvasElement, private opts: EngineOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: true, alpha: false, preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: "low-power",
     });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.03; this.sun.shadow.radius = 4;
+    Object.assign(this.sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 0.5, far: 24 });
+    this.camera.add(this.vignette.mesh);
+    this.scene.add(this.camera);
     this.renderer.setPixelRatio(opts.pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2));
     const fill = new THREE.DirectionalLight(0xfff0e0, 0.55);   // soft front light so characters stay readable at night
     fill.position.set(1.5, 2.5, 4);
@@ -118,10 +127,33 @@ export class SceneEngine {
     this.time = 0; this.reactionT = -1; this.pending = null;
     this.lookWindow = cfg.environment.rain >= 0.7 ? 1 : 0; this.cold = cfg.environment.fireplace ? 0 : 1;
     this.disposeRoot();
+    this.shadows = cfg.preset === "library";
+    this.room = cfg.preset === "library" ? LIB_ROOM : SMALL_ROOM;
     this.buildRoom(cfg.preset);
     this.applyEnvironment();
     this.applyCamera(cfg.camera.position, cfg.camera.target, cfg.camera.fov);
     await this.buildCharacter(cfg, modelUrl ?? null, token);
+    this.applyShadows();
+  }
+
+  private applyShadows(): void {
+    this.sun.castShadow = this.shadows;
+    if (!this.shadows) return;
+    const mark = (o: THREE.Object3D) => o.traverse((c) => {
+      const m = c as THREE.Mesh;
+      if (!m.isMesh && !(c as THREE.InstancedMesh).isInstancedMesh) return;
+      const mt = m.material as THREE.Material;
+      const soft = mt.transparent || (mt as THREE.MeshBasicMaterial).isMeshBasicMaterial;
+      m.castShadow = !c.userData.noCast && !soft; m.receiveShadow = !soft;
+    });
+    mark(this.root); mark(this.charGroup);
+  }
+
+  /** Dashboard: play the camera motion (disables orbiting) or hand the camera back to the mouse. */
+  setCameraPreview(on: boolean): void {
+    this.previewMotion = on;
+    if (this.controls) this.controls.enabled = !on;
+    if (!on && this.cfg) this.applyCamera(this.camBase.pos.toArray() as [number, number, number], this.camBase.target.toArray() as [number, number, number], this.camBase.fov);
   }
 
   setEnvironment(env: Environment3D): void {
@@ -152,7 +184,7 @@ export class SceneEngine {
         }
       };
       this.mixer.addEventListener("finished", done as never);
-    } else if (this.placeholder && (name === "click" || name === "break_time")) {
+    } else if ((this.placeholder || this.student) && (name === "click" || name === "break_time")) {
       this.reactionT = 0;
     }
   }
@@ -170,6 +202,7 @@ export class SceneEngine {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
+    this.vignette.fit(this.camera);
   }
 
   /** Advance the simulation by `dt` seconds (fixed steps => reproducible). */
@@ -187,7 +220,8 @@ export class SceneEngine {
     this.updateRain(t, env);
     if (this.mixer) this.mixer.update(dt);
     this.updatePlaceholder(dt, t, env);
-    this.controls?.update();
+    if (this.controls && !this.previewMotion) this.controls.update();
+    else this.applyCameraMotion(t);
   }
 
   /** Make all motion periodic with `seconds` (frame N == frame 0) so the rendered clip loops seamlessly. */
@@ -201,6 +235,7 @@ export class SceneEngine {
   reactionDuration(name: ReactionTrigger): number | null {
     const c = this.cfg?.character.reactions[name];
     if (this.mixer && c && this.clips.has(c)) return this.clips.get(c)!.duration;
+    if (this.student && (name === "click" || name === "break_time")) return 2.4;
     return this.placeholder && (name === "click" || name === "break_time") ? 1.6 : null;
   }
   idleDuration(): number | null { return this.idleAction ? this.idleAction.getClip().duration : null; }
@@ -209,6 +244,25 @@ export class SceneEngine {
     if (!this.loopLen) return f;
     const k = 2 * Math.PI / this.loopLen;
     return Math.max(1, Math.round(f / k)) * k;
+  }
+
+  /** Slow, periodic camera sway ("handheld cozy-game" feel). Pure function of time => loops seamlessly. */
+  private applyCameraMotion(t: number): void {
+    const cam = this.cfg?.camera;
+    if (!cam || cam.motion === "static" || cam.motion_amount <= 0) {
+      if (this.cfg) { this.camera.position.copy(this.camBase.pos); this.camera.lookAt(this.camBase.target); }
+      return;
+    }
+    const base = this.camBase, dir = base.target.clone().sub(base.pos), dist = dir.length(), a = cam.motion_amount;
+    const k = a * dist * 0.055;
+    const pos = base.pos.clone(), look = base.target.clone();
+    if (cam.motion === "drift") {
+      const dx = Math.sin(t * this.w(0.23)) * k * 1.6, dy = Math.sin(t * this.w(0.17) + 1.2) * k * 0.55, dz = Math.sin(t * this.w(0.13) + 2.1) * k * 0.9;
+      pos.add(new THREE.Vector3(dx, dy, dz)); look.add(new THREE.Vector3(-dx * 0.35, 0, -dz * 0.3));
+    } else {                                     // breathe: slow push-in / pull-out along the view direction
+      pos.add(dir.normalize().multiplyScalar(Math.sin(t * this.w(0.2)) * k * 1.8));
+    }
+    this.camera.position.copy(pos); this.camera.lookAt(look);
   }
 
   render(): void { this.renderer.render(this.scene, this.camera); }
@@ -249,13 +303,29 @@ export class SceneEngine {
     this.root.clear(); this.charGroup.clear();
     this.scene.remove(this.charGroup, this.lampLight, this.fireLight);
     this.flames = []; this.pickables = []; this.rain = null; this.stars = null; this.lampBulb = null;
-    this.mixer = null; this.idleAction = null; this.clips.clear(); this.placeholder = null;
+    this.mixer = null; this.idleAction = null; this.clips.clear(); this.placeholder = null; this.student = null; this.seat = null;
   }
 
   private pickable(obj: THREE.Object3D, target: PickTarget): void { obj.userData.pick = target; this.pickables.push(obj); }
 
+  private buildLibraryRoom(): void {
+    const lib: LibResult = buildLibrary({
+      root: this.root, pickable: (o, t) => this.pickable(o, t), noCast: (o) => { o.userData.noCast = true; },
+    });
+    this.seat = lib.seat;
+    this.hasFire = false;
+    this.lampLight.position.copy(lib.lampPos);
+    this.root.traverse((o) => { if (o.userData.lampBulb) this.lampBulb = o as THREE.Mesh; });
+    this.buildOutside(STYLES.library, 0, LIB_ROOM.back);
+    this.rebuildSkyOnly();
+    this.buildRain(0, LIB_ROOM.w, LIB_ROOM.back);
+    this.scene.add(this.fireLight, this.lampLight);
+  }
+
   private buildRoom(preset: Preset): void {
-    const s = STYLES[preset], { w, d, h, back } = ROOM;
+    this.hasFire = true;
+    if (preset === "library") { this.buildLibraryRoom(); return; }
+    const s = STYLES[preset], { w, d, h, back } = SMALL_ROOM;
     const r = this.root;
     r.add(box(w, 0.1, d, s.floor, 0, -0.05, back + d / 2));                               // floor
     r.add(box(0.1, h, d, s.wall, -w / 2, h / 2, back + d / 2), box(0.1, h, d, s.wall, w / 2, h / 2, back + d / 2)); // side walls
@@ -295,7 +365,7 @@ export class SceneEngine {
     const z = bz - 3;
     const add = (m: THREE.Object3D) => g.add(m);
     if (s.outside === "hills") {
-      [[-4, 0x2c3d57, 2.6], [1.5, 0x34486a, 3.2], [6, 0x2a3a55, 2.2]].forEach(([x, c, r], i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r as number, 20, 12), mat(c as number)); m.position.set(wx + (x as number), -0.6, z - i); add(m); });
+      [[-4, 0x2c3d57, 2.6], [1.5, 0x34486a, 3.2], [6, 0x2a3a55, 2.2]].forEach(([x, c, r], i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r as number, 20, 12), mat(c as number)); m.position.set(wx + (x as number), -0.6, z - i); m.userData.hill = i; add(m); });
     } else if (s.outside === "trees") {
       for (let i = 0; i < 22; i++) { const tx = wx + (rand() - 0.5) * 9, tz = z - rand() * 4, th = 1.4 + rand() * 1.4;
         const tr = new THREE.Mesh(new THREE.ConeGeometry(0.5 + rand() * 0.3, th, 6), mat(0x1f4d36 + Math.floor(rand() * 0x101000))); tr.position.set(tx, th / 2 - 0.3, tz); add(tr); }
@@ -314,15 +384,26 @@ export class SceneEngine {
     const tod = this.env?.time_of_day ?? "night", sky = SKY[tod];
     const g = new THREE.Group(); g.name = "sky";
     const dome = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshBasicMaterial({ color: sky.sky, fog: false }));
-    dome.position.set(0, 6, ROOM.back - 8); g.add(dome);
+    dome.position.set(0, 6, this.room.back - 8); g.add(dome);
     if (sky.stars) {
       const rand = rng(11), pos = new Float32Array(300 * 3);
-      for (let i = 0; i < 300; i++) { pos[i * 3] = (rand() - 0.5) * 40; pos[i * 3 + 1] = 2 + rand() * 10; pos[i * 3 + 2] = ROOM.back - 7.5; }
+      for (let i = 0; i < 300; i++) { pos[i * 3] = (rand() - 0.5) * 40; pos[i * 3 + 1] = 2 + rand() * 10; pos[i * 3 + 2] = this.room.back - 7.5; }
       const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       this.stars = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, fog: false })); g.add(this.stars);
     }
     this.root.add(g);
-    this.root.getObjectByName("outside")?.traverse((o) => { if (o.userData.night) o.visible = tod !== "day"; });
+    const HILLS: Record<TimeOfDay, number[]> = { day: [0x86c46e, 0x72b062, 0x9ccf7e], dusk: [0x9a6a62, 0x855a5c, 0xa8746a], night: [0x2c3d57, 0x34486a, 0x2a3a55] };
+    this.root.getObjectByName("outside")?.traverse((o) => {
+      if (o.userData.night) o.visible = tod !== "day";
+      const m = o as THREE.Mesh;
+      if (o.userData.hill !== undefined) (m.material as THREE.MeshStandardMaterial).color.setHex(HILLS[tod][o.userData.hill]);
+      else if (m.isMesh && !o.userData.night) {   // trees / buildings: brighter by day
+        const mm = m.material as THREE.MeshStandardMaterial;
+        if (o.userData.base === undefined) o.userData.base = mm.color.getHex();
+        mm.color.setHex(o.userData.base).multiplyScalar(tod === "day" ? 1.9 : tod === "dusk" ? 1.25 : 1);
+      }
+    });
+    this.root.traverse((o) => { if (o.userData.shaft) o.visible = tod !== "night"; });   // sunbeams through the windows
   }
 
   private buildFireplace(s: PresetStyle, x: number, z: number): void {
@@ -361,8 +442,8 @@ export class SceneEngine {
     this.root.add(g);
   }
   private addPendant(x: number): void {
-    const c = box(0.02, 0.8, 0.02, 0x222222, x, ROOM.h - 0.4, ROOM.back + 1.5); const b = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffe2a8 }));
-    b.position.set(x, ROOM.h - 0.85, ROOM.back + 1.5); this.root.add(c, b);
+    const c = box(0.02, 0.8, 0.02, 0x222222, x, SMALL_ROOM.h - 0.4, SMALL_ROOM.back + 1.5); const b = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffe2a8 }));
+    b.position.set(x, SMALL_ROOM.h - 0.85, SMALL_ROOM.back + 1.5); this.root.add(c, b);
   }
   private buildLamp(s: PresetStyle, x: number, z: number): void {
     const g = new THREE.Group();
@@ -378,10 +459,12 @@ export class SceneEngine {
   private applyEnvironment(): void {
     const env = this.env!, sky = SKY[env.time_of_day];
     this.ambient.color.set(sky.ambient); this.ambient.intensity = sky.ambientI;
-    this.sun.color.set(sky.sun); this.sun.intensity = sky.sunI; this.sun.position.set(-3, 5, 2);
+    this.sun.color.set(sky.sun); this.sun.intensity = sky.sunI;
+    if (this.shadows) { this.sun.position.set(-2.5, 7.5, 5.5); this.sun.target.position.set(0, 0, -0.5); this.scene.add(this.sun.target); }
+    else this.sun.position.set(-3, 5, 2);
     this.scene.background = new THREE.Color(sky.sky);
     this.scene.fog = env.fog > 0.02 ? new THREE.FogExp2(sky.sky, 0.02 + env.fog * 0.06) : null;
-    this.fireLight.visible = env.fireplace;
+    this.fireLight.visible = env.fireplace && this.hasFire;
     this.flames.forEach((f) => (f.visible = env.fireplace));
     this.lampLight.visible = env.lamp;
     if (this.lampBulb) (this.lampBulb.material as THREE.MeshStandardMaterial).emissiveIntensity = env.lamp ? 1.1 : 0;
@@ -453,7 +536,19 @@ export class SceneEngine {
   }
 
   /** Built-in stand-in character: a round bear-like figure. Not a user asset; replaced by a .glb when chosen. */
+  private buildStudent(): void {
+    const c = this.cfg!.character, accent = STYLES[this.cfg!.preset].accent;
+    const st = new Student(accent, 1.2 * c.scale);
+    st.group.rotation.y = THREE.MathUtils.degToRad(c.rotation_y);
+    this.charGroup.position.set(this.seat!.x + c.position[0], this.seat!.y + c.position[1], this.seat!.z + c.position[2]);
+    this.charGroup.rotation.y = 0;
+    this.charGroup.add(st.group);
+    this.student = st;
+    this.pickable(this.charGroup, "character");
+  }
+
   private buildPlaceholder(): void {
+    if (this.cfg!.character.pose === "study" && this.seat) { this.buildStudent(); return; }
     const accent = STYLES[this.cfg!.preset].accent, fur = 0xc99a6b;
     const g = this.charGroup, sc = this.cfg!.character.scale;
     const body = new THREE.Group(), head = new THREE.Group(), arm = new THREE.Group();
@@ -476,6 +571,18 @@ export class SceneEngine {
   }
 
   private updatePlaceholder(dt: number, t: number, env: Environment3D): void {
+    if (this.student) {
+      let m = 0;
+      if (this.reactionT >= 0) {                       // stretch + yawn
+        this.reactionT += dt; const k = this.reactionT;
+        if (k > 2.4) this.reactionT = -1; else m = Math.min(1, k / 0.4, (2.4 - k) / 0.5);
+      }
+      const k2 = Math.min(1, dt * 2.5);
+      this.lookWindow += ((env.rain >= 0.7 ? 1 : 0) - this.lookWindow) * k2;
+      this.cold += ((env.fireplace || !this.hasFire ? 0 : 1) - this.cold) * k2;
+      this.student.animate({ t, loopLen: this.loopLen, w: (f) => this.w(f), reaction: m, look: this.lookWindow, cold: this.cold });
+      return;
+    }
     const p = this.placeholder; if (!p) return;
     let hop = 0, wave = 0, m = 0;     // m = 0..1 reaction envelope (eases in and out, so it never snaps)
     if (this.reactionT >= 0) {
@@ -501,7 +608,8 @@ export class SceneEngine {
 
   // ------------------------------------------------------------------ camera + picking
   private applyCamera(pos: [number, number, number], target: [number, number, number], fov: number): void {
-    this.camera.position.set(...pos); this.camera.fov = fov; this.camera.updateProjectionMatrix();
+    this.camBase.pos.set(...pos); this.camBase.target.set(...target); this.camBase.fov = fov;
+    this.camera.position.set(...pos); this.camera.fov = fov; this.camera.updateProjectionMatrix(); this.vignette.fit(this.camera);
     if (this.controls) { this.controls.target.set(...target); this.controls.update(); } else this.camera.lookAt(...target);
   }
   private pickAt(e: PointerEvent): PickTarget | null {

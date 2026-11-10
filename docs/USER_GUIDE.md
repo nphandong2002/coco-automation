@@ -111,6 +111,14 @@ Mở một dự án nội dung → tab **Cảnh 3D**.
 Cấu hình trong `.env` (tùy chọn): `CHROMIUM_PATH`, `SCENE3D_FPS` (mặc định 15), `SCENE3D_LOOP_SECONDS` (mặc định 20), `SCENE3D_SOFTWARE_GL` (mặc định true).
 Lưu ý: nhân vật 2D của Character Manager không dùng trong cảnh 3D; dùng model `.glb` thay thế.
 
+**Cảnh "Thư viện" kiểu study-with-me (góc nhìn từ trên cao)**
+- Chọn bối cảnh *Thư viện học bài*: phòng có cửa sổ lưới nhìn ra đồi, giá sách hai bên, sàn đá lát, thảm tròn, bàn đọc sách có đèn, và nhân vật **ngồi học** ở bàn. Mọi thứ do hệ thống tự dựng (không dùng ảnh/model của bên thứ ba).
+- Nhân vật tạm (gấu Koko) có **chu trình học** lặp lại: viết bài → ngó quanh → viết → lật trang → đọc → nhấp một ngụm → viết tiếp; chớp mắt, thở nhẹ. Đến giờ nghỉ Pomodoro thì vươn vai và ngáp; mưa lớn thì hay ngó sang bên; tắt lò sưởi thì co ro.
+- **Camera**: chọn góc quay có sẵn (từ trên cao nhìn xuống, toàn cảnh, cận cảnh bàn học, ngang tầm mắt) và chuyển động (*Đứng yên*, *Trôi nhẹ*, *Tiến/lùi chậm*) kèm biên độ. Chuyển động camera tuần hoàn theo vòng lặp nên video lặp 1–8 giờ không bị giật. Bấm *Xem thử chuyển động camera* để xem trước.
+- Đồ họa: ánh sáng ấm, bóng đổ mềm, màu bão hòa, viền tối nhẹ ở góc khung, tia nắng qua cửa sổ (ban ngày/hoàng hôn).
+- Đồng hồ Pomodoro: ở tab *Pomodoro*, đặt vị trí đồng hồ là **giữa màn hình** nếu muốn bố cục giống các video study-with-me.
+- Lưu ý bản quyền: hệ thống không tạo nhân vật hay cảnh của game/phim có bản quyền; hãy dùng nhân vật của bạn (model `.glb` riêng, hoặc gấu Koko).
+
 **Nhân vật phản ứng với môi trường trong video**
 - *Trạng thái* (giữ nguyên cả video): mưa lớn (mưa ≥ 70%) → nhân vật nhìn ra cửa sổ; lò sưởi tắt → co ro run nhẹ. Với model `.glb`, gán animation cho "Khi mưa lớn" / "Khi lò sưởi tắt" — animation đó được lặp lại thay cho animation đứng yên (lò sưởi tắt được ưu tiên hơn mưa lớn).
 - *Sự kiện*: **giờ nghỉ Pomodoro** — ở đầu mỗi giờ nghỉ (tab Pomodoro, bật đồng hồ Pomodoro) nhân vật phản ứng một lần (nhân vật tạm: vẫy tay và nhảy; model `.glb`: animation gán cho "Khi bắt đầu giờ nghỉ"). Hệ thống chụp thêm một *vòng lặp biến thể* có phản ứng và thay vào đúng vòng lặp chứa thời điểm nghỉ; điểm vào/ra giống hệt nên không bị giật. Không gán animation giờ nghỉ cho model `.glb` thì không có phản ứng này.

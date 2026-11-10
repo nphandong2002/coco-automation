@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Asset, ContentProject } from "../api/types";
 import { SceneEngine } from "../scene3d/engine";
-import { defaultScene, PRESETS, TIMES, TRIGGERS } from "../scene3d/types";
-import type { Environment3D, PickTarget, ReactionTrigger, Scene3D, TimeOfDay } from "../scene3d/types";
+import { CAMERA_SHOTS, defaultScene, MOTIONS, PRESETS, TIMES, TRIGGERS, withPreset } from "../scene3d/types";
+import type { CameraMotion, Environment3D, PickTarget, ReactionTrigger, Scene3D, TimeOfDay } from "../scene3d/types";
 import { useAction } from "../lib/hooks";
 import { AssetPicker, useCapabilities } from "./production";
 import { Field } from "./ui";
@@ -73,6 +73,7 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
   const [clips, setClips] = useState<string[]>([]);
   const [placeholder, setPlaceholder] = useState(true);
   const [picker, setPicker] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const engine = useRef<SceneEngine | null>(null);
   const caps = useCapabilities();
   const { busy, run } = useAction();
@@ -96,7 +97,7 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
           onEnvChange={(e) => setEnv(e)} onReady={(i) => { setClips(i.clips); setPlaceholder(i.placeholder); }} />
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary" disabled={busy || !dirty} onClick={save}>{dirty ? "💾 Lưu cảnh 3D" : "Đã lưu"}</button>
-          <button className="btn-ghost" disabled={!engine.current} onClick={() => { const c = engine.current!.currentCamera(); setScene((s) => ({ ...s, camera: c })); }}>📷 Dùng góc nhìn hiện tại làm camera</button>
+          <button className="btn-ghost" disabled={!engine.current} onClick={() => { const c = engine.current!.currentCamera(); setScene((s) => ({ ...s, camera: { ...s.camera, ...c } })); }}>📷 Dùng góc nhìn hiện tại làm camera</button>
           <button className="btn-ghost" disabled={!dirty} onClick={() => { setScene(initial); setModelUrl(p.scene3d_model_url); }}>Hoàn tác</button>
           {p.scene3d && <button className="btn-ghost text-red-700" disabled={busy} onClick={async () => {
             if (!confirm("Xóa cấu hình cảnh 3D của dự án này?")) return;
@@ -119,7 +120,7 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
         <div className="card space-y-3 p-4">
           <h3 className="font-semibold">Môi trường</h3>
           <Field label="Bối cảnh">
-            <select className="input" value={scene.preset} onChange={(e) => setScene((s) => ({ ...s, preset: e.target.value as Scene3D["preset"] }))}>
+            <select className="input" value={scene.preset} onChange={(e) => setScene((s) => withPreset(s, e.target.value as Scene3D["preset"]))}>
               {Object.entries(PRESETS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </Field>
@@ -136,7 +137,36 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
         </div>
 
         <div className="card space-y-3 p-4">
+          <h3 className="font-semibold">Camera</h3>
+          <Field label="Góc quay có sẵn">
+            <select className="input" value="" onChange={(e) => {
+              const shot = CAMERA_SHOTS[e.target.value];
+              if (shot) setScene((s) => ({ ...s, camera: { ...s.camera, position: shot.position, target: shot.target, fov: shot.fov } }));
+            }}>
+              <option value="">— Chọn để áp dụng —</option>
+              {Object.entries(CAMERA_SHOTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Chuyển động camera">
+            <select className="input" value={scene.camera.motion} onChange={(e) => setScene((s) => ({ ...s, camera: { ...s.camera, motion: e.target.value as CameraMotion } }))}>
+              {Object.entries(MOTIONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
+          <Slider label="Biên độ chuyển động" value={scene.camera.motion_amount} onChange={(v) => setScene((s) => ({ ...s, camera: { ...s.camera, motion_amount: v } }))} />
+          <button className="btn-ghost text-xs" onClick={() => { const on = !previewing; setPreviewing(on); engine.current?.setCameraPreview(on); }}>
+            {previewing ? "■ Dừng xem thử camera (quay lại xoay bằng chuột)" : "▶ Xem thử chuyển động camera"}
+          </button>
+          <p className="muted">Góc quay và chuyển động được lưu cùng cảnh và dùng khi render video.</p>
+        </div>
+
+        <div className="card space-y-3 p-4">
           <h3 className="font-semibold">Nhân vật 3D</h3>
+          <Field label="Tư thế">
+            <select className="input" value={ch.pose} onChange={(e) => setChar({ pose: e.target.value as "stand" | "study" })}>
+              <option value="stand">Đứng</option>
+              <option value="study" disabled={scene.preset !== "library"}>Ngồi học (chỉ ở cảnh Thư viện)</option>
+            </select>
+          </Field>
           <div className="text-sm">
             {ch.asset_id ? <>Model: <b>{modelName ?? `tài nguyên #${ch.asset_id}`}</b></> : <>Đang dùng <b>nhân vật tạm</b> (chưa có model .glb)</>}
           </div>
