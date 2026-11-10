@@ -53,6 +53,14 @@ def sha256_file(path: Path, chunk: int = 4 * 1024 * 1024) -> str:
     return h.hexdigest()
 
 
+def _write_concat(path: Path, files: list[Path]) -> None:
+    """FFmpeg concat-demuxer list (one `file` line per loop repetition)."""
+    def esc(p: Path) -> str:
+        return str(p).replace("\\", "/").replace("'", "'\\''")
+    lines = [f"file '{esc(f)}'" for f in files]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _even(x: float) -> int:
     return max(2, int(round(x / 2)) * 2)
 
@@ -136,14 +144,30 @@ def render(plan: dict, *, resolve: Callable[[str], Path], workdir: Path, output_
     # ---------------------------------------------------------------- 2. base loop
     base_path = workdir / "base.mp4"
     still_3d = workdir / "still3d.jpg"
+    concat_list: Path | None = None
     if sc3d:
-        scene3d.capture_loop(
-            scene=sc3d["scene"], model_rel=sc3d.get("model_path"), width=W, height=H,
-            capture_fps=int(sc3d.get("capture_fps", 15)), out_fps=fps,
-            loop_seconds=float(min(sc3d.get("loop_seconds", 20), D)), output=base_path, still_path=still_3d,
-            crf=crf, preset=preset, max_bitrate_kbps=max_kbps, threads=threads,
-            on_progress=lambda f: report("base", f), should_cancel=should_cancel, timeout=remaining(),
-            log_file=log_file)
+        break_starts = [float(x) for x in sc3d.get("break_starts") or []]
+        common = dict(scene=sc3d["scene"], model_rel=sc3d.get("model_path"), width=W, height=H,
+                      capture_fps=int(sc3d.get("capture_fps", 15)), out_fps=fps, crf=crf, preset=preset,
+                      max_bitrate_kbps=max_kbps, threads=threads, should_cancel=should_cancel, log_file=log_file)
+        share = 0.5 if break_starts else 1.0
+        L3 = scene3d.capture_loop(
+            **common, loop_seconds=float(min(sc3d.get("loop_seconds", 20), D)), output=base_path,
+            still_path=still_3d, reserve_event=bool(break_starts), timeout=remaining(),
+            on_progress=lambda f: report("base", f * share))
+        if break_starts:
+            # variant loop: same length/start/end pose as the base loop, but the character reacts to the break
+            variant = workdir / "break.mp4"
+            scene3d.capture_loop(
+                **common, loop_seconds=L3, exact_loop=True, event={"name": "break_time", "at": 0.5},
+                output=variant, still_path=workdir / "still_variant.jpg", timeout=remaining(),
+                on_progress=lambda f: report("base", share + f * (1 - share)))
+            n_loops = int(-(-D // L3))
+            hits = sorted({int(s // L3) for s in break_starts if 0 <= int(s // L3) < n_loops})
+            if hits:
+                concat_list = workdir / "loops.txt"
+                hitset = set(hits)
+                _write_concat(concat_list, [variant if i in hitset else base_path for i in range(n_loops)])
     else:
         spec = video.BaseLoopSpec(W, H, fps, loop, bg, motion, effects, char_spec, textures)
         ff.run(video.build_base_loop(spec, base_path, crf=crf, preset=preset, max_bitrate_kbps=max_kbps,
@@ -181,7 +205,8 @@ def render(plan: dict, *, resolve: Callable[[str], Path], workdir: Path, output_
                                     position=overlay_cfg.get("position", "top_center"),
                                     color=overlay_cfg.get("color", "#FFFFFF"), box=bool(overlay_cfg.get("box", True)))
     args, fgraph = video.build_final(base_path, audio_path, tmp_out, D, overlay=overlay, width=W, height=H,
-                                     fps=fps, crf=crf, preset=preset, max_bitrate_kbps=max_kbps, threads=threads)
+                                     fps=fps, crf=crf, preset=preset, max_bitrate_kbps=max_kbps, threads=threads,
+                                     concat_list=concat_list)
     if fgraph is not None:
         i = args.index("__FILTER__")
         args = args[:i] + ff.filter_complex_args(fgraph, workdir, "final") + args[i + 1:]

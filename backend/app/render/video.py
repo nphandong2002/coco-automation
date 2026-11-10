@@ -241,10 +241,14 @@ def overlay_filters(spec: OverlaySpec, W: int, H: int) -> list[str]:
 
 def build_final(base: Path, audio: Path, output: Path, duration: float, *,
                 overlay: OverlaySpec | None, width: int, height: int, fps: int, crf: int,
-                preset: str, max_bitrate_kbps: int, threads: int) -> tuple[list[str], str | None]:
+                preset: str, max_bitrate_kbps: int, threads: int,
+                concat_list: Path | None = None) -> tuple[list[str], str | None]:
     """Return (args, filtergraph or None). With a filtergraph, the caller passes it via
     ffmpeg.filter_complex_args() (it can be long) and maps [vout]."""
-    inputs = ["-stream_loop", "-1", "-i", str(base), "-i", str(audio)]
+    # concat_list: an explicit sequence of loop files (3D scenes with break reactions) instead of one endless loop
+    video_in = (["-f", "concat", "-safe", "0", "-i", str(concat_list)] if concat_list is not None
+                else ["-stream_loop", "-1", "-i", str(base)])
+    inputs = [*video_in, "-i", str(audio)]
     tail = ["-t", f"{duration:.3f}", "-movflags", "+faststart", str(output)]
     if overlay is None or overlay.mode == "none" or not overlay.phases:
         return [*inputs, "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", *tail], None

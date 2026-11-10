@@ -116,6 +116,13 @@ def build_plan(db: Session, p: ContentProject, job_type: VideoJobType, preview_s
                                  pm["cycles_before_long"])
     elif mode == "countdown":
         phases = countdown_phases(duration)
+    if scene3d is not None:
+        # break_time reaction: the character reacts at the start of every break (placeholder always can; a .glb
+        # needs a clip assigned to break_time)
+        sc_char = scene3d["scene"]["character"]
+        can_react = sc_char["asset_id"] is None or bool(sc_char["reactions"].get("break_time"))
+        scene3d["break_starts"] = ([round(ph.start, 3) for ph in phases if ph.kind in ("short_break", "long_break")]
+                                   if can_react else [])
     font_rel = None
     if overlay_cfg.get("font_asset_id"):
         fa = db.get(Asset, overlay_cfg["font_asset_id"])

@@ -93,3 +93,42 @@ def test_scene3d_project_renders_through_queue(client, channel):
 def test_capabilities_report_scene3d(client):
     caps = client.get("/api/production/capabilities").json()
     assert caps["scene3d"]["available"] is True and caps["scene3d"]["chromium"]
+
+
+# ------------------------------------------------------------------ 3D-3: reactions in the video
+def _plan_with_breaks(react: bool = True, duration=24.0):
+    from app.render.timeline import pomodoro_phases, to_json
+    phases = pomodoro_phases(duration, 8 / 60, 4 / 60, 4 / 60, 0)        # focus 8 s, break 4 s
+    plan = plan3d(duration=duration, loop=4.0)
+    plan["timeline"] = to_json(phases)
+    plan["scene3d"]["break_starts"] = ([p.start for p in phases if p.kind in ("short_break", "long_break")]
+                                       if react else [])
+    return plan, phases
+
+
+def test_break_reaction_variant_loops_are_swapped_in_and_seamless(tmp_path):
+    plan, phases = _plan_with_breaks()
+    work = tmp_path / "work"
+    res = pipeline.render(plan, resolve=storage.resolve, workdir=work, output_dir=tmp_path / "out",
+                          log_file=tmp_path / "r.log", timeout=300)
+    assert res.qc["passed"]
+    L = 120                                                    # 4 s @ 30 fps
+    listed = (work / "loops.txt").read_text().splitlines()
+    kinds = ["break" if "break.mp4" in line else "base" for line in listed]
+    expected = {int(p.start // 4) for p in phases if p.kind != "focus"}
+    assert {i for i, k in enumerate(kinds) if k == "break"} == expected and len(kinds) == 6
+    fr = _frames(res.video_path, 6 * L)
+    per_loop = [max(_diff(fr[k * L + i], fr[i]) for i in range(0, L, 10)) for k in range(6)]
+    for k, d in enumerate(per_loop):
+        assert (d > 1.0) == (k in expected), per_loop          # only the break loops differ from the idle loop
+    steps = [_diff(fr[i], fr[i + 1]) for i in range(len(fr) - 1) if (i + 1) % L]
+    for k in range(1, 6):                                      # every loop boundary looks like any other frame step
+        assert _diff(fr[k * L - 1], fr[k * L]) < max(steps) + 1.0
+
+
+def test_no_variant_when_character_has_no_break_reaction(tmp_path):
+    plan, _ = _plan_with_breaks(react=False)
+    work = tmp_path / "work"
+    res = pipeline.render(plan, resolve=storage.resolve, workdir=work, output_dir=tmp_path / "out",
+                          log_file=tmp_path / "r.log", timeout=300)
+    assert res.qc["passed"] and not (work / "loops.txt").exists() and not (work / "break.mp4").exists()

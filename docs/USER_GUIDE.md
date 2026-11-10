@@ -110,3 +110,9 @@ Mở một dự án nội dung → tab **Cảnh 3D**.
 
 Cấu hình trong `.env` (tùy chọn): `CHROMIUM_PATH`, `SCENE3D_FPS` (mặc định 15), `SCENE3D_LOOP_SECONDS` (mặc định 20), `SCENE3D_SOFTWARE_GL` (mặc định true).
 Lưu ý: nhân vật 2D của Character Manager không dùng trong cảnh 3D; dùng model `.glb` thay thế.
+
+**Nhân vật phản ứng với môi trường trong video**
+- *Trạng thái* (giữ nguyên cả video): mưa lớn (mưa ≥ 70%) → nhân vật nhìn ra cửa sổ; lò sưởi tắt → co ro run nhẹ. Với model `.glb`, gán animation cho "Khi mưa lớn" / "Khi lò sưởi tắt" — animation đó được lặp lại thay cho animation đứng yên (lò sưởi tắt được ưu tiên hơn mưa lớn).
+- *Sự kiện*: **giờ nghỉ Pomodoro** — ở đầu mỗi giờ nghỉ (tab Pomodoro, bật đồng hồ Pomodoro) nhân vật phản ứng một lần (nhân vật tạm: vẫy tay và nhảy; model `.glb`: animation gán cho "Khi bắt đầu giờ nghỉ"). Hệ thống chụp thêm một *vòng lặp biến thể* có phản ứng và thay vào đúng vòng lặp chứa thời điểm nghỉ; điểm vào/ra giống hệt nên không bị giật. Không gán animation giờ nghỉ cho model `.glb` thì không có phản ứng này.
+- "Khi bấm vào nhân vật" chỉ có trong trình xem của dashboard (người xem YouTube không bấm được).
+- Dùng nút *Xem thử phản ứng* trong tab Cảnh 3D để xem trước từng phản ứng.

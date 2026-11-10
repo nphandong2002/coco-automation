@@ -149,6 +149,20 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
           <Slider label="Hướng xoay (độ)" value={ch.rotation_y} min={-180} max={180} step={5} onChange={(v) => setChar({ rotation_y: v })} />
           <Slider label="Vị trí ngang (x)" value={ch.position[0]} min={-1.8} max={1.8} step={0.05} onChange={(v) => setChar({ position: [v, ch.position[1], ch.position[2]] })} />
           <Slider label="Vị trí sâu (z)" value={ch.position[2]} min={-1.6} max={2} step={0.05} onChange={(v) => setChar({ position: [ch.position[0], ch.position[1], v] })} />
+          <div className="space-y-2 rounded-lg bg-brand-50 p-3">
+            <div className="text-xs font-semibold uppercase text-ink-500">Xem thử phản ứng</div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-ghost text-xs" onClick={() => engine.current?.trigger("click")}>Bấm vào nhân vật</button>
+              <button className="btn-ghost text-xs" onClick={() => engine.current?.trigger("break_time")}>Giờ nghỉ</button>
+              <button className="btn-ghost text-xs" onClick={() => setEnv({ rain: env.rain >= 0.7 ? 0.3 : 0.9 })}>{env.rain >= 0.7 ? "Giảm mưa" : "Mưa lớn"}</button>
+              <button className="btn-ghost text-xs" onClick={() => setEnv({ fireplace: !env.fireplace })}>{env.fireplace ? "Tắt lò sưởi" : "Bật lò sưởi"}</button>
+            </div>
+            <p className="text-xs text-ink-500">
+              <b>Trong video:</b> mưa lớn / lò sưởi tắt là <i>trạng thái</i> giữ nguyên cả video (nhân vật nhìn ra cửa sổ, co ro — animation được lặp lại).
+              Giờ nghỉ là <i>sự kiện</i>: nhân vật phản ứng một lần ở đầu mỗi giờ nghỉ Pomodoro (cần bật đồng hồ Pomodoro ở tab Pomodoro).
+              Nhân vật tạm có sẵn mọi phản ứng; model .glb cần gán animation bên dưới.
+            </p>
+          </div>
           {!placeholder && clips.length > 0 && (
             <>
               <Field label="Animation đứng yên (idle)">

@@ -86,6 +86,9 @@ export class SceneEngine {
   private placeholder: { body: THREE.Object3D; head: THREE.Object3D; arm: THREE.Object3D; eyes: THREE.Object3D[] } | null = null;
   private reactionT = -1;        // seconds since a placeholder reaction started (-1 = none)
   private lookWindow = 0;        // 0..1 head turned toward the window
+  private cold = 0;              // 0..1 hunched/shivering when the fireplace is out
+  private stateMode = false;     // render mode: env reactions are steady STATES (looped), not one-shot events
+  private pending: { name: ReactionTrigger; at: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private opts: EngineOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({
@@ -112,7 +115,8 @@ export class SceneEngine {
     const token = ++this.loadToken;
     this.cfg = structuredClone(cfg);
     this.env = { ...cfg.environment };
-    this.time = 0; this.reactionT = -1; this.lookWindow = cfg.environment.rain >= 0.7 ? 1 : 0;
+    this.time = 0; this.reactionT = -1; this.pending = null;
+    this.lookWindow = cfg.environment.rain >= 0.7 ? 1 : 0; this.cold = cfg.environment.fireplace ? 0 : 1;
     this.disposeRoot();
     this.buildRoom(cfg.preset);
     this.applyEnvironment();
@@ -142,7 +146,10 @@ export class SceneEngine {
         if (e.action !== action) return;
         this.mixer!.removeEventListener("finished", done as never);
         action.fadeOut(0.25);
-        this.idleAction?.reset().fadeIn(0.25).play();
+        if (this.idleAction) {   // resume idle at the phase it would have had: keeps rendered loops seamless
+          const d = this.idleAction.getClip().duration;
+          this.idleAction.reset(); this.idleAction.time = this.time % d; this.idleAction.fadeIn(0.25).play();
+        }
       };
       this.mixer.addEventListener("finished", done as never);
     } else if (this.placeholder && (name === "click" || name === "break_time")) {
@@ -170,6 +177,7 @@ export class SceneEngine {
     this.time += dt;
     const t = this.time, env = this.env;
     if (!env) return;
+    if (this.pending && t >= this.pending.at) { const n = this.pending.name; this.pending = null; this.trigger(n); }
     // fire: layered sines (no randomness at runtime)
     const flick = 0.82 + 0.18 * (Math.sin(t * this.w(13.1)) + Math.sin(t * this.w(7.3) + 1.7) + Math.sin(t * this.w(23.9) + 4.1)) / 3;
     if (env.fireplace) {
@@ -185,6 +193,16 @@ export class SceneEngine {
   /** Make all motion periodic with `seconds` (frame N == frame 0) so the rendered clip loops seamlessly. */
   setLoop(seconds: number | null): void { this.loopLen = seconds && seconds > 0 ? seconds : null; }
   /** Length of the idle animation clip of a loaded .glb (null for the built-in character). */
+  /** Render mode: steady environment reactions (heavy rain / fire out) loop as the ambient animation. */
+  setStateMode(on: boolean): void { this.stateMode = on; }
+  /** Fire `name` once when the simulation clock reaches `at` seconds (used by the render worker). */
+  scheduleEvent(name: ReactionTrigger, at: number): void { this.pending = { name, at }; }
+  /** How long the reaction for `name` takes (clip length, or 1.6 s for the built-in character). */
+  reactionDuration(name: ReactionTrigger): number | null {
+    const c = this.cfg?.character.reactions[name];
+    if (this.mixer && c && this.clips.has(c)) return this.clips.get(c)!.duration;
+    return this.placeholder && (name === "click" || name === "break_time") ? 1.6 : null;
+  }
   idleDuration(): number | null { return this.idleAction ? this.idleAction.getClip().duration : null; }
   /** Angular frequency rounded so that a whole number of cycles fits the loop. */
   private w(f: number): number {
@@ -418,7 +436,10 @@ export class SceneEngine {
         clipNames = [...this.clips.keys()];
         if (clipNames.length) {
           this.mixer = new THREE.AnimationMixer(model);
-          const idle = (c.idle_animation && this.clips.get(c.idle_animation)) || this.clips.get(clipNames.find((n) => /idle|breath|stand/i.test(n)) ?? clipNames[0])!;
+          const r = c.reactions, env = cfg.environment;
+          const ambient = !this.stateMode ? null
+            : (!env.fireplace && r.fire_out && this.clips.get(r.fire_out)) || (env.rain >= 0.7 && r.rain_heavy && this.clips.get(r.rain_heavy)) || null;
+          const idle = ambient || (c.idle_animation && this.clips.get(c.idle_animation)) || this.clips.get(clipNames.find((n) => /idle|breath|stand/i.test(n)) ?? clipNames[0])!;
           this.idleAction = this.mixer.clipAction(idle).play();
         }
         isPlaceholder = false;
@@ -456,10 +477,19 @@ export class SceneEngine {
 
   private updatePlaceholder(dt: number, t: number, env: Environment3D): void {
     const p = this.placeholder; if (!p) return;
-    let hop = 0, wave = 0;
-    if (this.reactionT >= 0) { this.reactionT += dt; const k = this.reactionT; if (k > 1.6) this.reactionT = -1; else { hop = Math.abs(Math.sin(k * Math.PI * 2)) * 0.12 * (1 - k / 1.6); wave = Math.sin(k * 14) * 0.5 + 1.6; } }
+    let hop = 0, wave = 0, m = 0;     // m = 0..1 reaction envelope (eases in and out, so it never snaps)
+    if (this.reactionT >= 0) {
+      this.reactionT += dt; const k = this.reactionT;
+      if (k > 1.6) this.reactionT = -1;
+      else { m = Math.min(1, k / 0.2, (1.6 - k) / 0.3); hop = Math.abs(Math.sin(k * Math.PI * 2)) * 0.12 * m; wave = Math.sin(k * 14) * 0.5 + 1.6; }
+    }
+    const coldWant = env.fireplace ? 0 : 1;                  // fire out: hunches and shivers
+    this.cold += (coldWant - this.cold) * Math.min(1, dt * 2.5);
     p.body.position.y = hop + Math.sin(t * this.w(1.6)) * 0.012;
-    p.arm.rotation.z = wave ? -wave : -0.25 + Math.sin(t * this.w(1.6)) * 0.04;
+    p.body.position.x = this.cold * Math.sin(t * this.w(22)) * 0.006;
+    p.head.position.y = 0.98 - 0.06 * this.cold;
+    const rest = -0.25 + Math.sin(t * this.w(1.6)) * 0.04;
+    p.arm.rotation.z = rest * (1 - m) + -wave * m;
     const want = env.rain >= 0.7 ? 1 : 0;                    // heavy rain: looks toward the window
     this.lookWindow += (want - this.lookWindow) * Math.min(1, dt * 2.5);
     p.head.rotation.y = this.lookWindow * 0.6 + Math.sin(t * this.w(0.5)) * 0.05;

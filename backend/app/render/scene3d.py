@@ -140,8 +140,14 @@ def capture_loop(*, scene: dict, model_rel: str | None, width: int, height: int,
                  loop_seconds: float, output: Path, still_path: Path, crf: int, preset: str, max_bitrate_kbps: int,
                  threads: int, on_progress: Callable[[float], None] | None = None,
                  should_cancel: Callable[[], bool] | None = None, timeout: float | None = None,
-                 log_file: Path | None = None) -> float:
-    """Render `scene` into `output` (H.264, `out_fps`, seamless loop). Returns the real loop length (s)."""
+                 log_file: Path | None = None, event: dict | None = None, reserve_event: bool = False,
+                 exact_loop: bool = False) -> float:
+    """Render `scene` into `output` (H.264, `out_fps`, seamless loop). Returns the real loop length (s).
+
+    reserve_event: make the loop long enough to hold a break_time reaction (base loop of a video that has breaks).
+    event / exact_loop: render the *variant* loop in which the reaction plays once; it has exactly the base
+    loop's length and starts/ends in the same pose, so it can replace one repetition of the base loop.
+    """
     exe = require()
     from playwright.sync_api import Error as PWError
     from playwright.sync_api import sync_playwright
@@ -170,14 +176,17 @@ def capture_loop(*, scene: dict, model_rel: str | None, width: int, height: int,
                 try:
                     info = page.evaluate("o => window.coco3d.init(o)", {
                         "scene": scene, "modelUrl": model_url, "width": width, "height": height,
-                        "loopSeconds": loop_seconds})
+                        "loopSeconds": loop_seconds, "reserveEvent": reserve_event, "exactLoop": exact_loop,
+                        "event": event})
                 except PWError as exc:
                     raise Scene3DError(f"Không khởi tạo được cảnh 3D (WebGL?): {str(exc)[:300]}") from exc
+                if event and not info.get("eventFits"):
+                    raise Scene3DError("Vòng lặp quá ngắn để chứa phản ứng giờ nghỉ của nhân vật")
                 L = float(info["loopSeconds"])
                 n = max(2, round(L * capture_fps))
                 dt = L / n                       # exact: frame n == frame 0, so the loop has no seam
-                note(f"3D loop: {L:.2f}s, {n} frames @ {capture_fps} fps -> {out_fps} fps, "
-                     f"placeholder={info['placeholder']}, clips={info['clips']}")
+                note(f"3D loop{' (variant: ' + event['name'] + ')' if event else ''}: {L:.2f}s, {n} frames @ {capture_fps} fps "
+                     f"-> {out_fps} fps, placeholder={info['placeholder']}, clips={info['clips']}")
 
                 cmd = [ff.ffmpeg_bin(), "-hide_banner", "-y", "-loglevel", "error",
                        "-f", "image2pipe", "-framerate", f"{n / L:.6f}", "-c:v", "mjpeg", "-i", "-",

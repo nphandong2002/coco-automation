@@ -18,7 +18,8 @@ export const PRESETS: Record<Preset, string> = {
 };
 export const TIMES: Record<TimeOfDay, string> = { day: "Ban ngày", dusk: "Hoàng hôn", night: "Ban đêm" };
 export const TRIGGERS: Record<ReactionTrigger, string> = {
-  click: "Khi bấm vào nhân vật", rain_heavy: "Khi mưa lớn", fire_out: "Khi lò sưởi tắt", break_time: "Khi đến giờ nghỉ",
+  click: "Khi bấm vào nhân vật (chỉ trong dashboard)", rain_heavy: "Khi mưa lớn (mưa ≥ 70%)",
+  fire_out: "Khi lò sưởi tắt", break_time: "Khi bắt đầu giờ nghỉ Pomodoro",
 };
 
 export const defaultScene = (): Scene3D => ({

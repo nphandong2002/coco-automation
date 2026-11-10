@@ -8,8 +8,14 @@
 import { SceneEngine } from "./engine";
 import type { Scene3D } from "./types";
 
-interface InitOptions { scene: Scene3D; modelUrl: string | null; width: number; height: number; loopSeconds: number }
-interface InitResult { loopSeconds: number; placeholder: boolean; clips: string[] }
+interface InitOptions {
+  scene: Scene3D; modelUrl: string | null; width: number; height: number; loopSeconds: number;
+  reserveEvent?: boolean;                      // make the loop long enough to hold a break_time reaction
+  exactLoop?: boolean;                         // use loopSeconds as is (variant loops must match the base loop)
+  event?: { name: "break_time"; at: number } | null;
+}
+interface InitResult { loopSeconds: number; placeholder: boolean; clips: string[]; eventFits: boolean }
+const EVENT_TAIL = 1.5;   // seconds of calm after a reaction so the loop ends in the idle pose
 
 let engine: SceneEngine | null = null;
 
@@ -20,13 +26,21 @@ const api = {
     let info: { clips: string[]; placeholder: boolean } = { clips: [], placeholder: true };
     engine = new SceneEngine(canvas, { interactive: false, preserveDrawingBuffer: true, pixelRatio: 1, onReady: (i) => { info = i; } });
     engine.resize(o.width, o.height);
+    engine.setStateMode(true);
     await engine.setScene(o.scene, o.modelUrl);
     // a .glb idle clip loops by itself: make the whole loop a whole number of idle cycles
     const idle = engine.idleDuration();
+    const reaction = engine.reactionDuration("break_time") ?? 0;
+    const needed = o.reserveEvent || o.event ? reaction + (o.event?.at ?? 0.5) + EVENT_TAIL : 0;
     let L = o.loopSeconds;
-    if (idle && idle > 0.2) L = Math.max(1, Math.round(L / idle)) * idle;
+    if (!o.exactLoop) {
+      const target = Math.max(L, needed);
+      L = idle && idle > 0.2 ? Math.max(1, (needed > L ? Math.ceil : Math.round)(target / idle - 1e-6)) * idle : target;
+    }
     engine.setLoop(L);
-    return { loopSeconds: L, placeholder: info.placeholder, clips: info.clips };
+    const fits = !o.event || (reaction > 0 && needed <= L + 1e-6);
+    if (o.event && fits) engine.scheduleEvent(o.event.name, o.event.at);
+    return { loopSeconds: L, placeholder: info.placeholder, clips: info.clips, eventFits: fits };
   },
   /** Advance by `dt` (not for the very first frame) and return the frame as base64 JPEG. */
   frame(dt: number, first: boolean): string {
