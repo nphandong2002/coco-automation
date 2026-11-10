@@ -14,7 +14,7 @@ chmod +x scripts/*.sh
 Script sẽ:
 
 1. Cài `python3-venv`, `postgresql`, `ffmpeg`, `curl` (và Node.js 20 nếu Node < 18).
-2. Tạo virtualenv `.venv` và cài `backend/requirements.txt`.
+2. Tạo virtualenv `.venv`, cài `backend/requirements.txt` và Chromium (~150 MB, qua Playwright) dùng để render cảnh 3D.
 3. Tạo `.env` với mật khẩu DB ngẫu nhiên, `SECRET_KEY` Fernet, mật khẩu dashboard ngẫu nhiên (in ra màn hình).
 4. Tạo role/database PostgreSQL `coco`.
 5. Chạy migration (`alembic upgrade head`) và build dashboard.
@@ -87,3 +87,5 @@ cp .env.example .env && chmod 600 .env       # điền DATABASE_URL, SECRET_KEY,
 | Hỏi mật khẩu liên tục | Kiểm tra `DASHBOARD_USERNAME/PASSWORD` trong `.env` |
 | Cảnh báo/trạng thái hệ thống | Menu **Monitoring**; bảng mã cảnh báo ở [OPERATIONS.md](OPERATIONS.md) |
 | System Settings báo thiếu FFmpeg | `sudo apt install ffmpeg` (bắt buộc từ Phase 2) |
+| Cảnh 3D: "Không tìm thấy Chromium" | `.venv/bin/python -m playwright install --with-deps chromium` hoặc `sudo apt install chromium` và đặt `CHROMIUM_PATH` trong `.env` |
+| Cảnh 3D: "Frontend chưa build" | `cd frontend && npm ci && npm run build` (cần `dist/capture.html`) |

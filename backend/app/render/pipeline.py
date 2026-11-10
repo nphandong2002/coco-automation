@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.render import audio, scene, video
+from app.render import audio, scene, scene3d, video
 from app.render import ffmpeg as ff
 from app.render.fonts import find_font
 from app.render.qc import check_video
@@ -100,20 +100,24 @@ def render(plan: dict, *, resolve: Callable[[str], Path], workdir: Path, output_
 
     # ---------------------------------------------------------------- 1. prepare
     report("prepare", 0)
-    bg_cfg = plan["background"]
+    sc3d = plan.get("scene3d")          # 3D scene: replaces background / character / effects
+    bg_cfg = plan.get("background") or {}
     motion = bg_cfg.get("motion", "slow_zoom")
-    scale = video.background_scale(motion)
-    bg_src = resolve(bg_cfg["path"])
-    bg = scene.prepare_background(bg_src, workdir / "bg.png", _even(W * scale), _even(H * scale))
+    bg_src: Path | None = None
+    bg = None
+    if not sc3d:
+        scale = video.background_scale(motion)
+        bg_src = resolve(bg_cfg["path"])
+        bg = scene.prepare_background(bg_src, workdir / "bg.png", _even(W * scale), _even(H * scale))
     char_spec = None
     char_src: Path | None = None
-    if plan.get("character") and plan["character"].get("path"):
+    if not sc3d and plan.get("character") and plan["character"].get("path"):
         c = plan["character"]
         char_src = resolve(c["path"])
         cpath, cw, ch = scene.prepare_character(char_src, workdir / "character.png",
                                                 _even(H * float(c.get("scale", 0.42))))
         char_spec = video.CharacterSpec(cpath, cw, ch, c.get("position", "bottom_right"), c.get("motion", "bob"))
-    effects = list(plan.get("effects") or [])
+    effects = [] if sc3d else list(plan.get("effects") or [])
     textures: dict[str, Path] = {}
     seed = int(plan.get("seed", 1))
     if "rain" in effects:
@@ -131,11 +135,22 @@ def render(plan: dict, *, resolve: Callable[[str], Path], workdir: Path, output_
 
     # ---------------------------------------------------------------- 2. base loop
     base_path = workdir / "base.mp4"
-    spec = video.BaseLoopSpec(W, H, fps, loop, bg, motion, effects, char_spec, textures)
-    ff.run(video.build_base_loop(spec, base_path, crf=crf, preset=preset, max_bitrate_kbps=max_kbps,
-                                 threads=threads),
-           duration=loop, on_progress=lambda f: report("base", f), should_cancel=should_cancel,
-           timeout=remaining(), log_file=log_file, label="base-loop")
+    still_3d = workdir / "still3d.jpg"
+    if sc3d:
+        scene3d.capture_loop(
+            scene=sc3d["scene"], model_rel=sc3d.get("model_path"), width=W, height=H,
+            capture_fps=int(sc3d.get("capture_fps", 15)), out_fps=fps,
+            loop_seconds=float(min(sc3d.get("loop_seconds", 20), D)), output=base_path, still_path=still_3d,
+            crf=crf, preset=preset, max_bitrate_kbps=max_kbps, threads=threads,
+            on_progress=lambda f: report("base", f), should_cancel=should_cancel, timeout=remaining(),
+            log_file=log_file)
+    else:
+        spec = video.BaseLoopSpec(W, H, fps, loop, bg, motion, effects, char_spec, textures)
+        ff.run(video.build_base_loop(spec, base_path, crf=crf, preset=preset, max_bitrate_kbps=max_kbps,
+                                     threads=threads),
+               duration=loop, on_progress=lambda f: report("base", f), should_cancel=should_cancel,
+               timeout=remaining(), log_file=log_file, label="base-loop")
+    check_cancel()
 
     # ---------------------------------------------------------------- 3. audio
     audio_path = workdir / "audio.m4a"
@@ -182,7 +197,7 @@ def render(plan: dict, *, resolve: Callable[[str], Path], workdir: Path, output_
         thumb_tmp = workdir / ("thumbnail" + src.suffix.lower())
         shutil.copyfile(src, thumb_tmp)
     elif thumb_cfg.get("generate", True):
-        thumb_tmp = render_thumbnail(workdir / "thumbnail.jpg", background=bg_src,
+        thumb_tmp = render_thumbnail(workdir / "thumbnail.jpg", background=still_3d if sc3d else bg_src,
                                      title=thumb_cfg.get("title_text") or plan.get("title", ""),
                                      badge=thumb_cfg.get("badge", ""), character=char_src,
                                      accent=thumb_cfg.get("accent", "#E3A86B"), font_path=font)

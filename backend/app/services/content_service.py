@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import storage
+from app.render import scene3d as scene3d_render
 from app.core.config import get_settings
 from app.models import (
     Asset,
@@ -373,7 +374,21 @@ def validate_for_render(db: Session, p: ContentProject) -> ValidationReport:
     if p.duration_minutes not in DURATION_CHOICES:
         errors.append(f"Thời lượng phải là một trong {DURATION_CHOICES} phút")
 
-    if p.background_asset_id is None:
+    if p.scene3d:
+        st = scene3d_render.status()
+        if not st["available"]:
+            errors.append("Không render được cảnh 3D trên máy này: " + (st["reason"] or ""))
+        model_id = (p.scene3d.get("character") or {}).get("asset_id")
+        if model_id is not None:
+            try:
+                m = get_usable(db, p.channel_id, model_id, AssetKind.MODEL)
+                if not storage.resolve(m.file_path).exists():
+                    errors.append(f"File model 3D '{m.name}' không còn trên ổ đĩa")
+            except AppError as exc:
+                errors.append(exc.message)
+        warnings.append("Cảnh 3D thay thế hình nền 2D, animation 2D và ảnh nhân vật 2D khi render "
+                        "(âm thanh, đồng hồ Pomodoro, thumbnail vẫn dùng như cũ)")
+    elif p.background_asset_id is None:
         errors.append("Chưa chọn hình nền (tải ảnh lên hoặc tạo ảnh nền ở mục Assets)")
     else:
         try:
@@ -516,7 +531,8 @@ def generate_metadata(db: Session, p: ContentProject, apply: bool = True) -> Met
 
 def generate_thumbnail(db: Session, p: ContentProject) -> ContentProject:
     if p.background_asset_id is None:
-        raise AppError("Cần chọn hình nền trước khi tạo thumbnail")
+        raise AppError("Cần chọn hình nền trước khi tạo thumbnail"
+                       + (" (dự án dùng cảnh 3D: thumbnail tự động được chụp từ cảnh khi render)" if p.scene3d else ""))
     bg = get_usable(db, p.channel_id, p.background_asset_id, AssetKind.IMAGE)
     char_img = character_image(pinned_version(db, p))
     ch = db.get(Channel, p.channel_id)

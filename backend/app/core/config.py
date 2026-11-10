@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     max_asset_upload_mb: int = 2048
     max_model_upload_mb: int = 200   # .glb 3D models
 
+    # ---------------------------------------------------------------- 3D scene rendering
+    chromium_path: str = ""          # empty = auto-detect chromium / chrome / edge
+    scene3d_fps: int = 15            # capture frame rate of the 3D loop (duplicated up to the video fps)
+    scene3d_loop_seconds: int = 20   # length of the seamless 3D loop (looped to 30 min - 8 h by FFmpeg)
+    scene3d_software_gl: bool = True # SwiftShader software WebGL: works without a GPU
+
     # ---------------------------------------------------------------- Phase 2: rendering
     ffmpeg_path: str = ""          # empty = find "ffmpeg" on PATH
     ffprobe_path: str = ""         # empty = find "ffprobe" on PATH (optional, ffmpeg fallback)

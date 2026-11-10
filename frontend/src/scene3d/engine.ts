@@ -43,6 +43,7 @@ const ROOM = { w: 4.4, d: 4.2, h: 2.7, back: -2 };
 export interface EngineOptions {
   interactive?: boolean;                 // orbit + picking (dashboard); false for headless capture
   preserveDrawingBuffer?: boolean;       // needed to read pixels
+  pixelRatio?: number;                   // default min(devicePixelRatio, 2); capture uses 1
   onEnvChange?: (env: Environment3D) => void;   // user clicked a window/fireplace/lamp
   onPick?: (t: PickTarget | null) => void;
   onHover?: (t: PickTarget | null) => void;
@@ -57,6 +58,7 @@ export class SceneEngine {
   private cfg: Scene3D | null = null;
   private env: Environment3D | null = null;
   private time = 0;
+  private loopLen: number | null = null;   // seconds; when set every motion is periodic with this length
   private raf = 0;
   private last = 0;
   private loadToken = 0;
@@ -90,8 +92,10 @@ export class SceneEngine {
       canvas, antialias: true, alpha: false, preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: "low-power",
     });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.scene.add(this.root, this.ambient, this.sun);
+    this.renderer.setPixelRatio(opts.pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2));
+    const fill = new THREE.DirectionalLight(0xfff0e0, 0.55);   // soft front light so characters stay readable at night
+    fill.position.set(1.5, 2.5, 4);
+    this.scene.add(this.root, this.ambient, this.sun, fill);
     if (opts.interactive) {
       this.controls = new OrbitControls(this.camera, canvas);
       this.controls.enableDamping = true;
@@ -108,6 +112,7 @@ export class SceneEngine {
     const token = ++this.loadToken;
     this.cfg = structuredClone(cfg);
     this.env = { ...cfg.environment };
+    this.time = 0; this.reactionT = -1; this.lookWindow = cfg.environment.rain >= 0.7 ? 1 : 0;
     this.disposeRoot();
     this.buildRoom(cfg.preset);
     this.applyEnvironment();
@@ -166,15 +171,26 @@ export class SceneEngine {
     const t = this.time, env = this.env;
     if (!env) return;
     // fire: layered sines (no randomness at runtime)
-    const flick = 0.82 + 0.18 * (Math.sin(t * 13.1) + Math.sin(t * 7.3 + 1.7) + Math.sin(t * 23.9 + 4.1)) / 3;
+    const flick = 0.82 + 0.18 * (Math.sin(t * this.w(13.1)) + Math.sin(t * this.w(7.3) + 1.7) + Math.sin(t * this.w(23.9) + 4.1)) / 3;
     if (env.fireplace) {
       this.fireLight.intensity = 2.2 * flick;
-      this.flames.forEach((f, i) => { f.scale.set(1 + 0.12 * Math.sin(t * 9 + i * 2), flick * (0.9 + 0.25 * Math.sin(t * 11 + i)), 1); f.rotation.y += dt * 0.6; });
+      this.flames.forEach((f, i) => { f.scale.set(1 + 0.12 * Math.sin(t * this.w(9) + i * 2), flick * (0.9 + 0.25 * Math.sin(t * this.w(11) + i)), 1); f.rotation.y = t * this.w(0.6) + i; });
     }
     this.updateRain(t, env);
     if (this.mixer) this.mixer.update(dt);
     this.updatePlaceholder(dt, t, env);
     this.controls?.update();
+  }
+
+  /** Make all motion periodic with `seconds` (frame N == frame 0) so the rendered clip loops seamlessly. */
+  setLoop(seconds: number | null): void { this.loopLen = seconds && seconds > 0 ? seconds : null; }
+  /** Length of the idle animation clip of a loaded .glb (null for the built-in character). */
+  idleDuration(): number | null { return this.idleAction ? this.idleAction.getClip().duration : null; }
+  /** Angular frequency rounded so that a whole number of cycles fits the loop. */
+  private w(f: number): number {
+    if (!this.loopLen) return f;
+    const k = 2 * Math.PI / this.loopLen;
+    return Math.max(1, Math.round(f / k)) * k;
   }
 
   render(): void { this.renderer.render(this.scene, this.camera); }
@@ -370,7 +386,9 @@ export class SceneEngine {
     const H = 8, slant = env.wind * 0.5, speed = 7 + env.rain * 6, n = Math.floor(env.rain * RAIN_MAX);
     for (let i = 0; i < n; i++) {
       const x = s[i * 4], z = s[i * 4 + 2], v = s[i * 4 + 3];
-      const y = ((s[i * 4 + 1] * H - t * speed * v) % H + H) % H - 0.5;
+      let vs = speed * v;
+      if (this.loopLen) vs = Math.max(1, Math.round(this.loopLen * vs / H)) * H / this.loopLen;   // whole number of falls per loop
+      const y = ((s[i * 4 + 1] * H - t * vs) % H + H) % H - 0.5;
       const len = 0.25 + env.rain * 0.25;
       const o = i * 6; arr[o] = x + slant * (y / H) * 3; arr[o + 1] = y; arr[o + 2] = z; arr[o + 3] = arr[o] - slant * 0.12; arr[o + 4] = y + len; arr[o + 5] = z;
     }
@@ -440,13 +458,14 @@ export class SceneEngine {
     const p = this.placeholder; if (!p) return;
     let hop = 0, wave = 0;
     if (this.reactionT >= 0) { this.reactionT += dt; const k = this.reactionT; if (k > 1.6) this.reactionT = -1; else { hop = Math.abs(Math.sin(k * Math.PI * 2)) * 0.12 * (1 - k / 1.6); wave = Math.sin(k * 14) * 0.5 + 1.6; } }
-    p.body.position.y = hop + Math.sin(t * 1.6) * 0.012;
-    p.arm.rotation.z = wave ? -wave : -0.25 + Math.sin(t * 1.6) * 0.04;
+    p.body.position.y = hop + Math.sin(t * this.w(1.6)) * 0.012;
+    p.arm.rotation.z = wave ? -wave : -0.25 + Math.sin(t * this.w(1.6)) * 0.04;
     const want = env.rain >= 0.7 ? 1 : 0;                    // heavy rain: looks toward the window
     this.lookWindow += (want - this.lookWindow) * Math.min(1, dt * 2.5);
-    p.head.rotation.y = this.lookWindow * 0.6 + Math.sin(t * 0.5) * 0.05;
-    p.head.rotation.z = Math.sin(t * 0.9) * 0.03;
-    const blink = (t % 4.2) < 0.12 ? 0.1 : 1;               // deterministic blink every ~4.2 s
+    p.head.rotation.y = this.lookWindow * 0.6 + Math.sin(t * this.w(0.5)) * 0.05;
+    p.head.rotation.z = Math.sin(t * this.w(0.9)) * 0.03;
+    const period = this.loopLen ? this.loopLen / Math.max(1, Math.round(this.loopLen / 4.2)) : 4.2;
+    const blink = (t % period) < 0.12 ? 0.1 : 1;            // deterministic blink every ~4.2 s
     p.eyes.forEach((e) => (e.scale.y = blink));
   }
 

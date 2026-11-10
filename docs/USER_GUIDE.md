@@ -97,3 +97,16 @@ Khi có cảnh báo, trang Overview hiện dải thông báo dẫn tới Monitor
 ## 7. Backup & restore
 
 Xem [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+
+## 8. Cảnh 3D (xem tương tác & render ra video)
+
+Mở một dự án nội dung → tab **Cảnh 3D**.
+
+1. **Dàn dựng**: chọn bối cảnh (phòng học, cửa sổ mưa, nhà gỗ, quán cà phê), thời điểm, mưa/gió/sương mù, lò sưởi, đèn.
+   Kéo chuột để xoay, cuộn để zoom; bấm vào cửa sổ / lò sưởi / đèn / nhân vật để tương tác. Bấm *Dùng góc nhìn hiện tại làm camera* rồi **Lưu cảnh 3D**.
+2. **Nhân vật**: mặc định là nhân vật tạm. Tải model `.glb` của bạn ở mục **Assets** (khai báo giấy phép như mọi tài nguyên) rồi chọn ở đây; gán animation cho "đứng yên" và các phản ứng (bấm vào, mưa lớn, lửa tắt, giờ nghỉ).
+3. **Render**: khi dự án có cảnh 3D, cảnh **thay thế** hình nền 2D / animation 2D / ảnh nhân vật 2D. Tab *Render* vẫn dùng âm thanh, đồng hồ Pomodoro, hàng đợi, kiểm tra chất lượng và thumbnail như cũ.
+   Hệ thống chụp một **vòng lặp liền mạch** (mặc định 20 giây, 15 khung/giây rồi nhân đôi lên 30 fps) bằng Chromium không giao diện, sau đó FFmpeg lặp lại đến 30 phút – 8 giờ. Không cần GPU; xem trước 10–60 giây để kiểm tra trước khi render dài.
+
+Cấu hình trong `.env` (tùy chọn): `CHROMIUM_PATH`, `SCENE3D_FPS` (mặc định 15), `SCENE3D_LOOP_SECONDS` (mặc định 20), `SCENE3D_SOFTWARE_GL` (mặc định true).
+Lưu ý: nhân vật 2D của Character Manager không dùng trong cảnh 3D; dùng model `.glb` thay thế.

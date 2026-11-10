@@ -23,6 +23,8 @@ from app.models.enums import (
     VideoJobType,
 )
 from app.render import ffmpeg as ff
+from app.render import scene3d as scene3d_render
+from app.schemas.scene3d import Scene3D
 from app.render.audio import GENERATORS
 from app.render.fonts import find_font
 from app.render.metadata import duration_label
@@ -67,11 +69,22 @@ def build_plan(db: Session, p: ContentProject, job_type: VideoJobType, preview_s
     max_kbps = int(settings.render_max_bitrate_kbps * (W * H) / (1920 * 1080))
 
     bg = db.get(Asset, p.background_asset_id) if p.background_asset_id else None
-    if bg is None:
+    scene3d = None
+    if p.scene3d:
+        # 3D scene replaces the 2D background/character: same audio, timer overlay, queue and QC.
+        sc = Scene3D(**p.scene3d)
+        model_id = sc.character.asset_id
+        model = db.get(Asset, model_id) if model_id else None
+        if model_id and model is None:
+            raise AppError("Model 3D của nhân vật không còn tồn tại")
+        cap = max(1, int(round(fps / max(1, min(fps, settings.scene3d_fps)))))   # integer divisor of the video fps
+        scene3d = {"scene": sc.model_dump(mode="json"), "model_path": model.file_path if model else None,
+                   "capture_fps": max(1, fps // cap), "loop_seconds": float(min(settings.scene3d_loop_seconds, duration))}
+    elif bg is None:
         raise AppError("Chưa chọn hình nền")
     anim = p.animation or {}
     character = None
-    if p.character_id is not None:
+    if p.character_id is not None and scene3d is None:
         v = pinned_version(db, p)
         img = character_image(v)
         if img:
@@ -126,7 +139,9 @@ def build_plan(db: Session, p: ContentProject, job_type: VideoJobType, preview_s
         "audio": {"bitrate_kbps": settings.render_audio_bitrate_kbps, "chime_volume": rs.get("chime_volume", 0.6),
                   "master_volume": rs.get("master_volume", 1.0), "fade_in": 3.0,
                   "fade_out": 8.0 if duration >= 1800 else 3.0},
-        "background": {"asset_id": bg.id, "path": bg.file_path, "motion": anim.get("background_motion", "slow_zoom")},
+        "background": ({"asset_id": bg.id, "path": bg.file_path, "motion": anim.get("background_motion", "slow_zoom")}
+                       if bg is not None else None),
+        "scene3d": scene3d,
         "character": character,
         "effects": list(anim.get("effects") or []),
         "layers": layers,
@@ -359,6 +374,7 @@ def capabilities() -> Capabilities:
         pass
     font = find_font()
     return Capabilities(
+        scene3d=scene3d_render.status(),
         ffmpeg_path=path, ffmpeg_version=version, ffprobe_path=ff.ffprobe_bin() if path else None,
         drawtext=drawtext, font_path=str(font) if font else None, render_threads=ff.render_threads(),
         render_preset=settings.render_preset, render_crf=settings.render_crf,

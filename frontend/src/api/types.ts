@@ -326,6 +326,7 @@ export interface WorkerInfo {
 export interface ProductionStatusInfo { workers: WorkerInfo[]; queued: number; running: number; failed_24h: number; succeeded_24h: number }
 
 export interface Capabilities {
+  scene3d?: { available: boolean; chromium: string | null; playwright: boolean; frontend_built: boolean; reason: string | null } | null;
   ffmpeg_path: string | null;
   ffmpeg_version: string | null;
   ffprobe_path: string | null;

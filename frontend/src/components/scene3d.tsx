@@ -5,7 +5,7 @@ import { SceneEngine } from "../scene3d/engine";
 import { defaultScene, PRESETS, TIMES, TRIGGERS } from "../scene3d/types";
 import type { Environment3D, PickTarget, ReactionTrigger, Scene3D, TimeOfDay } from "../scene3d/types";
 import { useAction } from "../lib/hooks";
-import { AssetPicker } from "./production";
+import { AssetPicker, useCapabilities } from "./production";
 import { Field } from "./ui";
 
 const PICK_LABEL: Record<PickTarget, string> = {
@@ -74,6 +74,7 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
   const [placeholder, setPlaceholder] = useState(true);
   const [picker, setPicker] = useState(false);
   const engine = useRef<SceneEngine | null>(null);
+  const caps = useCapabilities();
   const { busy, run } = useAction();
 
   useEffect(() => { setScene(initial); setModelUrl(p.scene3d_model_url); }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -103,8 +104,14 @@ export function Scene3DEditor({ p, onProject }: { p: ContentProject; onProject: 
             if (r) { onProject(r); setScene(defaultScene()); setModelUrl(null); }
           }}>Xóa cảnh</button>}
         </div>
+        {caps.data && !caps.data.scene3d?.available && (
+          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Máy này chưa render được cảnh 3D ra video: {caps.data.scene3d?.reason ?? "không rõ nguyên nhân"}. Bạn vẫn xem và dàn dựng cảnh bình thường.
+          </div>
+        )}
         <p className="muted">
-          Cảnh này đang dùng để <b>xem và dàn dựng</b>. Việc xuất cảnh 3D thành video MP4 là bước tiếp theo — hiện render vẫn dùng hình nền 2D ở tab "Hình ảnh &amp; nhân vật".
+          Khi render, cảnh 3D <b>thay thế</b> hình nền 2D, animation 2D và ảnh nhân vật 2D. Âm thanh, đồng hồ Pomodoro và thumbnail dùng như cũ.
+          Cảnh được chụp thành một vòng lặp ngắn liền mạch rồi lặp lại đến độ dài video — hãy render thử bản xem trước ở tab Render.
         </p>
       </div>
 

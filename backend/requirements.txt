@@ -11,3 +11,4 @@ Pillow==12.3.0
 psutil==7.2.2
 httpx==0.28.1
 tzdata==2025.2
+playwright==1.49.1   # driver only: headless Chromium captures 3D scenes (no GPU needed)

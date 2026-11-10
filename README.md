@@ -81,3 +81,4 @@ API docs (Swagger): `http://<host>:8080/api/docs`
 | 3 | YouTube OAuth theo từng kênh, upload (mặc định Private), Publishing Scheduler | 🟡 code xong, chờ chạy test DB |
 | 4 | YouTube Analytics sync, dashboard thống kê, so sánh hiệu suất | ⏳ |
 | 5 | Monitoring, recovery, tối ưu tài nguyên | ⏳ |
+| 3D | Cảnh 3D (three.js): xem tương tác trong dashboard + render ra video bằng Chromium không giao diện (không cần GPU) | 🟡 3D-1, 3D-2 xong; 3D-3 (nhân vật phản ứng theo môi trường) chưa làm |

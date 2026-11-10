@@ -77,6 +77,7 @@ class ProductionStatusOut(BaseModel):
 
 
 class Capabilities(BaseModel):
+    scene3d: dict | None = None
     ffmpeg_path: str | None
     ffmpeg_version: str | None
     ffprobe_path: str | None

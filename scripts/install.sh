@@ -25,6 +25,8 @@ info "3/7 Tạo Python virtualenv..."
 python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip wheel >/dev/null
 "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/backend/requirements.txt"
+info "     Tải Chromium (~150 MB) để render cảnh 3D không cần GPU..."
+"$APP_DIR/.venv/bin/python" -m playwright install --with-deps chromium   || warn "Không cài được Chromium: render cảnh 3D sẽ không dùng được (cài thủ công: sudo apt install chromium, đặt CHROMIUM_PATH trong .env)"
 
 info "4/7 Tạo file .env..."
 if [[ ! -f "$APP_DIR/.env" ]]; then
