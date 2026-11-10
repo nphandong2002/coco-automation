@@ -154,6 +154,8 @@ def capture_loop(*, scene: dict, model_rel: str | None, width: int, height: int,
 
     started = time.monotonic()
     output.parent.mkdir(parents=True, exist_ok=True)
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
     log_fh = log_file.open("a", encoding="utf-8") if log_file else None
 
     def note(msg: str) -> None:

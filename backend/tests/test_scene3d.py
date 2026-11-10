@@ -78,8 +78,8 @@ def test_upload_glb_and_use_in_scene(client, channel, upload_asset):
 
 
 def test_scene_rejects_non_model_and_foreign_assets(client, channel, upload_asset, png):
-    ch, other = channel("a", "A"), channel("b", "B")
-    img = upload_asset(png, "x.png", channel_id=ch["id"]).json()
+    ch, other = channel("chan-a", "Channel A"), channel("chan-b", "Channel B")
+    img = upload_asset(png(), "x.png", channel_id=ch["id"]).json()
     foreign = upload_asset(make_glb(), "f.glb", channel_id=other["id"]).json()
     for asset_id in (img["id"], foreign["id"]):
         r = client.post(f"/api/channels/{ch['id']}/content",
